@@ -37,7 +37,6 @@
                 <div class="mb-2 flex items-center justify-between px-1">
                     <h1 class="font-bold">Vendita <span class="font-normal text-stone-500" x-show="rows.length" x-text="`· ${totalPieces} pz`"></span></h1>
                     <div class="flex gap-2">
-                        <button type="button" class="btn-light py-2 text-sm" @click="addFreeRow()">+ Riga libera</button>
                         <button type="button" class="btn-light py-2 text-sm" @click="newSale()" x-show="rows.length">Svuota</button>
                     </div>
                 </div>
@@ -51,20 +50,8 @@
                          :class="flashKey === row.key && 'bg-brand-50'">
                         <img :src="row.image_url" x-show="row.image_url" class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-stone-200" alt="">
                         <div class="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-auto">
-                            <template x-if="row.product_id">
-                                <div>
-                                    <div class="line-clamp-2 font-semibold leading-tight" x-text="row.description"></div>
-                                    <div class="text-xs text-stone-500" x-text="[row.sku, row.format].filter(Boolean).join(' · ')"></div>
-                                </div>
-                            </template>
-                            <template x-if="!row.product_id">
-                                <div class="flex gap-2">
-                                    <input :data-free="row.key" class="input py-2" placeholder="Descrizione riga libera" x-model="row.description">
-                                    <select class="input w-20 px-2 py-2" x-model.number="row.vat_rate">
-                                        <option value="22">22%</option><option value="10">10%</option><option value="5">5%</option><option value="4">4%</option>
-                                    </select>
-                                </div>
-                            </template>
+                            <div class="line-clamp-2 font-semibold leading-tight" x-text="row.description"></div>
+                            <div class="text-xs text-stone-500" x-text="[row.sku, row.format].filter(Boolean).join(' · ')"></div>
                         </div>
                         <div class="flex items-center">
                             <button type="button" @click="changeQty(row, -1)" class="h-11 w-11 rounded-l-xl bg-stone-100 text-xl font-bold hover:bg-stone-200" aria-label="Diminuisci">−</button>

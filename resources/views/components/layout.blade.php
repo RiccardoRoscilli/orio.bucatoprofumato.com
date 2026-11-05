@@ -43,6 +43,26 @@
     @endauth
 
     <main class="mx-auto max-w-7xl px-4 py-5">
+        @auth
+            @php
+                $closureStatus = app(\App\Services\Closure\ClosureStatus::class);
+                $overdueDay = $closureStatus->overdueDay();
+            @endphp
+            @if ($overdueDay || $closureStatus->reminderDue())
+                <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white">
+                    <span class="mr-auto">
+                        @if ($overdueDay)
+                            Manca la chiusura fiscale del {{ $overdueDay->format('d/m/Y') }}: gli scontrini sono bloccati finché non chiudi la giornata.
+                        @else
+                            Ricordati la chiusura giornata: la chiusura fiscale va fatta entro mezzanotte.
+                        @endif
+                    </span>
+                    @unless (request()->routeIs('closure'))
+                        <a href="{{ route('closure') }}" class="rounded-lg bg-white px-4 py-2 text-red-700">Chiudi giornata</a>
+                    @endunless
+                </div>
+            @endif
+        @endauth
         @if (session('status'))
             <div class="mb-4 rounded-xl bg-brand-50 px-4 py-3 text-brand-700 ring-1 ring-brand-100">{{ session('status') }}</div>
         @endif

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Services\Closure\ClosureStatus;
 use App\Services\Fattura24Service;
 use App\Services\FiscalPrinter\EpsonFpMateXml;
 use Illuminate\Http\Request;
@@ -16,6 +17,10 @@ class DocumentController extends Controller
     public function receipt(Sale $sale)
     {
         abort_unless($sale->status === 'pagata', 422, 'La vendita non è pagata.');
+
+        if ($block = app(ClosureStatus::class)->receiptBlockMessage()) {
+            return response()->json(['message' => $block], 423);
+        }
 
         $sale->load('items');
         $xml = EpsonFpMateXml::receipt($sale);

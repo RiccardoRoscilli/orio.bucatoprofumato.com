@@ -47,6 +47,14 @@ class EpsonFpMateXml
             . "\n</printerFiscalReceipt>\n</s:Body>\n</s:Envelope>";
     }
 
+    /** Chiusura fiscale giornaliera (report Z): chiude la giornata e avvia l'invio dei corrispettivi. */
+    public static function zReport(): string
+    {
+        return '<?xml version="1.0" encoding="utf-8"?>' . "\n"
+            . '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">' . "\n"
+            . "<s:Body>\n<printerFiscalReport>\n  <printZReport operator=\"1\" />\n</printerFiscalReport>\n</s:Body>\n</s:Envelope>";
+    }
+
     private static function money(int $cents): string
     {
         return number_format($cents / 100, 2, ',', '');

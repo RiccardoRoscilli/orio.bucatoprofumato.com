@@ -15,6 +15,15 @@ return [
         'host' => env('FISCAL_PRINTER_HOST'),
     ],
 
+    'closure' => [
+        // Da quest'ora, se la chiusura fiscale di oggi non e' fatta, compare l'avviso rosso
+        'reminder_at' => env('ORIO_CLOSURE_REMINDER_AT', '19:00'),
+        // A quest'ora parte l'email se ci sono scontrini del giorno non ancora chiusi
+        'alert_at' => env('ORIO_CLOSURE_ALERT_AT', '21:00'),
+        // Destinatari dell'email, separati da virgola (oltre agli admin con email)
+        'alert_emails' => array_filter(array_map('trim', explode(',', (string) env('ORIO_CLOSURE_ALERT_EMAILS', '')))),
+    ],
+
     'fattura24' => [
         'api_key' => env('FATTURA24_API_KEY'),
         'id_numerator' => env('FATTURA24_ID_NUMERATOR'),

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Closure\ClosureStatus;
 use App\Models\Sale;
 use App\Services\FiscalPrinter\EpsonFpMateXml;
 use App\Services\Vne\FakeVneClient;
@@ -46,7 +47,7 @@ class SaleController extends Controller
             'document_type' => 'required|in:scontrino,fattura',
             'customer_id' => 'nullable|required_if:document_type,fattura|exists:customers,id',
             'items' => 'required|array|min:1',
-            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.product_id' => 'required|exists:products,id',
             'items.*.sku' => 'nullable|string|max:255',
             'items.*.description' => 'required|string|max:255',
             'items.*.qty' => 'required|numeric|min:0.001',
@@ -55,7 +56,12 @@ class SaleController extends Controller
         ], [
             'customer_id.required_if' => 'Per la fattura serve il cliente: cerca la partita IVA.',
             'items.required' => 'Aggiungi almeno una riga.',
+            'items.*.product_id.required' => 'Si possono vendere solo prodotti del catalogo bucatoprofumato.com.',
         ]);
+
+        if ($data['document_type'] === 'scontrino' && $block = app(ClosureStatus::class)->receiptBlockMessage()) {
+            return response()->json(['message' => $block], 423);
+        }
 
         $sale = Sale::create([
             'user_id' => $request->user()->id,

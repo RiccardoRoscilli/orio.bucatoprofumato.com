@@ -6,8 +6,6 @@ const euro = (cents) => (cents / 100).toLocaleString('it-IT', { style: 'currency
 let rowSeq = 0;
 const nextKey = () => `r${++rowSeq}`;
 
-const freeRow = () => ({ key: nextKey(), product_id: null, sku: null, description: '', qty: 1, price: '', vat_rate: 22 });
-
 const parsePrice = (value) => parseFloat(String(value).replace(',', '.')) || 0;
 
 const sounds = {
@@ -181,12 +179,6 @@ export default () => ({
         if (qty > 0) this.pendingQty = qty;
         this.qtyModal = false;
         this.focusScan();
-    },
-
-    addFreeRow() {
-        const row = freeRow();
-        this.rows.unshift(row);
-        this.$nextTick(() => this.$root.querySelector(`[data-free="${row.key}"]`)?.focus());
     },
 
     changeQty(row, delta) {

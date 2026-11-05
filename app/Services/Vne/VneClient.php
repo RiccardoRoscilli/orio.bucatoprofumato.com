@@ -18,7 +18,7 @@ abstract class VneClient
         $response = $this->call([
             'tipo' => 1,
             'importo' => $amountCents,
-            'opName' => config('orio.vne.op_name'),
+            'opName' => $this->opName(),
             'refundable' => 1,
             'credit_card' => $creditCard ? 1 : 0,
         ], $saleId);
@@ -29,7 +29,7 @@ abstract class VneClient
     /** Polling esito pagamento (tipo 2). */
     public function poll(string $id, ?int $saleId = null): array
     {
-        $payload = ['tipo' => 2, 'id' => $id, 'opName' => config('orio.vne.op_name')];
+        $payload = ['tipo' => 2, 'id' => $id, 'opName' => $this->opName()];
         $response = $this->call($payload, $saleId, log: false);
 
         // Nel log va solo l'esito finale, non ogni polling da un secondo
@@ -46,25 +46,48 @@ abstract class VneClient
      */
     public function cancel(string $id, int $mode, ?int $saleId = null): array
     {
-        return $this->call(['tipo' => 3, 'id' => $id, 'tipo_annullamento' => $mode, 'opName' => config('orio.vne.op_name')], $saleId);
+        $payload = ['tipo' => 3, 'id' => $id, 'tipo_annullamento' => $mode, 'opName' => $this->opName()];
+
+        try {
+            return $this->call($payload, $saleId);
+        } catch (VneException $e) {
+            // Su alcune installazioni VNE annulla solo l'operatore che ha avviato il pagamento
+            // (NACK 114): si riprova con opName vuoto, che la macchina tratta come super user.
+            if ($e->getCode() !== 114) {
+                throw $e;
+            }
+
+            return $this->call(['opName' => ''] + $payload, $saleId);
+        }
     }
 
     /** Lista scontrini pendenti (tipo 5). */
     public function pending(): array
     {
-        return $this->call(['tipo' => 5, 'opName' => config('orio.vne.op_name')], log: false);
+        return $this->call(['tipo' => 5, 'opName' => $this->opName()], log: false);
     }
 
     /** Stato della macchina (tipo 20). */
     public function status(): array
     {
-        return $this->call(['tipo' => 20, 'opName' => config('orio.vne.op_name')], log: false);
+        return $this->call(['tipo' => 20, 'opName' => $this->opName()], log: false);
     }
 
     /** Chiusura cassa (tipo 60). */
     public function closure(): array
     {
-        return $this->call(['tipo' => 60, 'opName' => config('orio.vne.op_name')]);
+        return $this->call(['tipo' => 60, 'opName' => $this->opName()]);
+    }
+
+    /**
+     * Operatore comunicato a VNE: lo username dell'utente orio collegato, cosi' nei report e
+     * nelle chiusure della cassa automatica si vede chi ha incassato. Non serve che esista
+     * sulla macchina (protocollo 3.05, par. 14). Senza utente (es. comandi da console) si usa
+     * il nome di ripiego VNE_OP_NAME.
+     */
+    protected function opName(): string
+    {
+        return auth()->user()?->username ?? config('orio.vne.op_name');
     }
 
     protected function call(array $payload, ?int $saleId = null, bool $log = true): array

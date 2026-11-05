@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Services\Vne\DirectVneClient;
+use App\Services\Vne\FakeVneClient;
+use App\Services\Vne\VneClient;
+use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +16,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(VneClient::class, fn () => match (config('orio.vne.driver')) {
+            'direct' => new DirectVneClient(),
+            default => new FakeVneClient(),
+        });
     }
 
     /**
@@ -19,6 +27,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::define('admin', fn (User $user) => $user->is_admin);
     }
 }

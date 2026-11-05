@@ -20,6 +20,9 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'username',
+        'is_admin',
+        'active',
         'email',
         'password',
     ];
@@ -44,6 +47,13 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
+            'active' => 'boolean',
         ];
+    }
+
+    public function sales()
+    {
+        return $this->hasMany(Sale::class);
     }
 }

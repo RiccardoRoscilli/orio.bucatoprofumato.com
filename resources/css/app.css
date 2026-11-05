@@ -6,6 +6,56 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --color-brand-50: #eef7f6;
+    --color-brand-100: #d5ecea;
+    --color-brand-500: #2a8c83;
+    --color-brand-600: #1f7169;
+    --color-brand-700: #195a54;
 }
+
+[x-cloak] { display: none !important; }
+
+@utility btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition active:scale-[.98] disabled:opacity-40 disabled:pointer-events-none; 
+}
+
+@utility btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700; 
+}
+
+@utility btn-light {
+    @apply btn bg-white text-stone-800 ring-1 ring-stone-300 hover:bg-stone-50; 
+}
+
+@utility btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700; 
+}
+
+@utility input {
+    @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2.5 text-base focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none; 
+}
+
+@utility card {
+    @apply rounded-2xl bg-white ring-1 ring-stone-200; 
+}
+
+@utility badge {
+    @apply inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold; 
+}
+
+@utility filter-chip {
+    @apply rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-stone-600 ring-1 ring-stone-300;
+    &.is-active {
+        @apply bg-brand-600 text-white ring-brand-600;
+    }
+}
+
+/* DataTables in stile orio */
+.products-table thead th { @apply text-xs font-semibold uppercase tracking-wide text-stone-500; }
+.products-table tbody td { @apply align-middle; }
+.products-table tbody tr.to-review { @apply bg-amber-50/70; }
+.dt-container .dt-search input { @apply input w-[min(36rem,80vw)] py-2.5 text-base; }
+.dt-container .dt-length select { @apply input w-auto py-1.5; }
+.dt-container .dt-info { @apply text-sm text-stone-500; }
+.dt-container .dt-paging .dt-paging-button.current { @apply rounded-lg; }

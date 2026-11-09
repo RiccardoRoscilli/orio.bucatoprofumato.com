@@ -56,7 +56,7 @@
             @endif
             @if ($receiptXml && $sale->document_type === 'scontrino')
                 <details class="card p-4">
-                    <summary class="cursor-pointer font-bold">XML scontrino (Epson FPMate)</summary>
+                    <summary class="cursor-pointer font-bold">Comandi stampante fiscale</summary>
                     <pre class="mt-3 overflow-x-auto text-xs">{{ $receiptXml }}</pre>
                 </details>
             @endif
@@ -98,7 +98,7 @@
                     @if ($sale->document_type === 'fattura')
                         <button class="btn-primary w-full" :disabled="busy" @click="emit('{{ route('sales.invoice', $sale) }}')">Invia fattura a Fattura24</button>
                     @else
-                        <button class="btn-primary w-full" :disabled="busy" @click="emit('{{ route('sales.receipt.emit', $sale) }}')">Emetti scontrino</button>
+                        <button class="btn-primary w-full" :disabled="busy" @click="busy = true; msg = null; emitReceipt({{ $sale->id }}).then(() => location.reload()).catch((e) => { msg = e.response?.data?.message ?? e.message; busy = false; })">Emetti scontrino</button>
                     @endif
                 @endif
                 @if (in_array($sale->status, ['bozza', 'pagata'], true))

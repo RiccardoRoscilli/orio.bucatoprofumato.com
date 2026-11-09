@@ -36,10 +36,9 @@
         @endif
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-2">
         <div class="card p-4"><div class="text-sm text-stone-500">Contanti (VNE)</div><div class="text-2xl font-bold tabular-nums">{{ euro($totals['contanti']) }}</div></div>
-        <div class="card p-4"><div class="text-sm text-stone-500">Carta (VNE)</div><div class="text-2xl font-bold tabular-nums">{{ euro($totals['carta']) }}</div></div>
-        <div class="card p-4"><div class="text-sm text-stone-500">POS esterno</div><div class="text-2xl font-bold tabular-nums">{{ euro($totals['pos']) }}</div></div>
+        <div class="card p-4"><div class="text-sm text-stone-500">Carta / Bancomat (POS)</div><div class="text-2xl font-bold tabular-nums">{{ euro($totals['pos']) }}</div></div>
     </div>
     <div class="mt-3 flex flex-wrap gap-4 text-sm text-stone-600">
         <span>{{ $totals['scontrini'] }} scontrini</span>

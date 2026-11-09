@@ -10,9 +10,16 @@ return [
     ],
 
     'fiscal_printer' => [
-        // fake = anteprima senza stampare, epson = FPMate chiamato dal browser della postazione
+        // fake = anteprima senza stampare, axon = Axon DADO RT (WyCash 600) con le API WEB G100,
+        // epson = FPMate. axon ed epson sono chiamate dal browser della postazione.
         'driver' => env('FISCAL_PRINTER_DRIVER', 'fake'),
         'host' => env('FISCAL_PRINTER_HOST'),
+        // Axon: aliquota IVA => reparto programmato sulla stampante (es. "22:1,10:2,5:3,4:4")
+        'departments' => collect(explode(',', (string) env('FISCAL_PRINTER_DEPARTMENTS', '22:1,10:2,5:3,4:4')))
+            ->mapWithKeys(fn ($pair) => [(int) strtok($pair, ':') => (int) strtok(':')])->all(),
+        // Axon: numeri di pagamento programmati sulla stampante
+        'payment_cash' => (int) env('FISCAL_PRINTER_PAYMENT_CASH', 1),
+        'payment_card' => (int) env('FISCAL_PRINTER_PAYMENT_CARD', 2),
     ],
 
     'closure' => [

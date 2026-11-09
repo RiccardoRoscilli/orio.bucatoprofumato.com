@@ -1,5 +1,5 @@
 <x-layout title="Cassa">
-    <div x-data="cassa" class="grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div x-data="cassa(@js($initial))" class="grid gap-5 lg:grid-cols-[1fr_360px]">
         {{-- Scansione e righe della vendita --}}
         <section class="space-y-4">
             <div class="card relative p-3">
@@ -35,7 +35,10 @@
 
             <div class="card p-3">
                 <div class="mb-2 flex items-center justify-between px-1">
-                    <h1 class="font-bold">Vendita <span class="font-normal text-stone-500" x-show="rows.length" x-text="`· ${totalPieces} pz`"></span></h1>
+                    <h1 class="font-bold">Vendita <span class="font-normal text-stone-500" x-show="rows.length" x-text="`· ${totalPieces} pz`"></span>
+                        <span class="ml-2 text-xs font-normal" x-show="saveState" x-cloak
+                              :class="saveState === 'error' ? 'text-red-600' : 'text-stone-400'"
+                              x-text="{ saving: 'salvataggio…', saved: '✓ bozza salvata', error: 'bozza non salvata' }[saveState]"></span></h1>
                     <div class="flex gap-2">
                         <button type="button" class="btn-light py-2 text-sm" @click="newSale()" x-show="rows.length">Svuota</button>
                     </div>
@@ -142,10 +145,7 @@
                 <p x-show="error" x-text="error" class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
                 <div class="mt-4 grid gap-2">
                     <button type="button" class="btn-primary py-5 text-xl" :disabled="!canPay" @click="pay('contanti')">Contanti</button>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('carta')">Carta (VNE)</button>
-                        <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('pos')">POS esterno</button>
-                    </div>
+                    <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('pos')">Carta / Bancomat (POS)</button>
                 </div>
                 <p class="mt-3 text-xs text-stone-500" x-show="documentType === 'fattura' && !customer.id">Per la fattura serve il cliente: cerca la partita IVA.</p>
             </div>
@@ -230,15 +230,30 @@
                                 <a :href="result.showUrl" class="mt-3 inline-block font-semibold text-brand-700">Apri la vendita</a>
                             </div>
                         </template>
+                        <template x-if="result?.type === 'da_emettere'">
+                            <div>
+                                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-3xl text-amber-600">!</div>
+                                <div class="mt-3 text-xl font-bold">Pagamento incassato, documento da emettere</div>
+                                <div class="mt-1 text-stone-500" x-text="`${euro(sale.paid_cents || sale.total_cents)} già incassati: emetti ${documentType === 'fattura' ? 'la fattura' : 'lo scontrino'} per chiudere la vendita.`"></div>
+                                <button type="button" class="btn-primary mt-5 w-full" @click="emitDocument()" x-text="documentType === 'fattura' ? 'Emetti fattura' : 'Emetti scontrino'"></button>
+                                <div class="mt-3 flex justify-center gap-6 text-sm font-semibold">
+                                    <a :href="`/vendite/${sale.id}`" class="text-brand-700">Apri la vendita</a>
+                                    <button type="button" class="text-stone-500" @click="newSale()">Più tardi</button>
+                                </div>
+                            </div>
+                        </template>
                         <template x-if="result?.type === 'errore'">
                             <div>
                                 <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-3xl text-red-600">!</div>
                                 <div class="mt-3 text-xl font-bold">Pagamento incassato, documento non emesso</div>
                                 <div class="mt-1 text-stone-500" x-text="result.message"></div>
-                                <a :href="result.showUrl" class="mt-3 inline-block font-semibold text-brand-700">Apri la vendita per riprovare</a>
+                                <div class="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-semibold">
+                                    <button type="button" class="btn-primary px-6" @click="emitDocument()">Riprova</button>
+                                    <a :href="result.showUrl" class="self-center text-brand-700">Apri la vendita</a>
+                                </div>
                             </div>
                         </template>
-                        <button type="button" class="btn-primary mt-6 w-full" x-show="!result?.loading" @click="newSale()">Nuova vendita</button>
+                        <button type="button" class="btn-primary mt-6 w-full" x-show="!result?.loading && result?.type !== 'da_emettere'" @click="newSale()">Nuova vendita</button>
                     </div>
                 </template>
             </div>

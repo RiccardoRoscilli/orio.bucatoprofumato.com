@@ -79,6 +79,16 @@ Ogni chiamata e risposta VNE viene salvata nella tabella `vne_transactions` per 
 
 ## 4. Scontrino fiscale (stampante RT)
 
+> **Stampante in negozio (11/2026): WyCash 600 con stampante fiscale Axon Micrelec DADO RT, firmware G100.**
+> Driver `axon` (`FISCAL_PRINTER_DRIVER=axon`, `FISCAL_PRINTER_HOST=<IP>`): il server prepara i comandi
+> SF20 (`app/Services/FiscalPrinter/AxonG100.php`), il browser del tablet li manda alla stampante con le
+> API WEB G100 (`GET http://IP/_io?cmd=4&js=1&pkt=…`, stato con `cmd=0`) in `resources/js/fiscal/axon.js`.
+> Numero scontrino = `ej.lastdoc` (chiusura-documento) letto dopo la stampa. Reparti e numeri di pagamento
+> in `FISCAL_PRINTER_DEPARTMENTS` / `FISCAL_PRINTER_PAYMENT_*`, da verificare dalla pagina **Stampante**
+> (solo admin). In locale c'è un simulatore: `FISCAL_PRINTER_HOST=orio.test/dev/axon`.
+> Il protocollo (AP.esse, "Protocollo di comunicazione RT G100 v6.0") è riservato e non è nel repository.
+> Quanto segue sulle Epson resta valido solo per il driver `epson`.
+
 > ⚠️ **Differenza importante rispetto a emmycasa**: lì `printReceipt` stampa un ticket **non fiscale** via Epson ePOS (`addText`). Per orio serve un vero **documento commerciale** emesso da una stampante RT.
 
 - **Stampanti consigliate**: **Epson FP-81 II RT** o **Epson FP-90 III RT**, pilotate via FPMate (`printerFiscalReceipt` con `printRecItem`, `printRecTotal` e la forma di pagamento: contanti o elettronico). Sono gli unici modelli Epson con stampa HTTPS da browser documentata e usata in produzione da gestionali web (es. Spiagge.it).

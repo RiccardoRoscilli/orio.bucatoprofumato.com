@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Sale;
 use App\Services\Closure\ClosureStatus;
 use App\Services\Fattura24Service;
+use App\Services\FiscalPrinter\AxonG100;
 use App\Services\FiscalPrinter\EpsonFpMateXml;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,8 @@ class DocumentController extends Controller
 {
     /**
      * Emissione scontrino. Con la stampante simulata il numero viene assegnato qui; con la
-     * Epson l'XML torna al browser, che lo manda a FPMate e poi conferma con receiptConfirm().
+     * Axon DADO (o la Epson) i comandi tornano al browser della postazione, che li manda alla
+     * stampante in rete locale e poi conferma il numero con receiptConfirm().
      */
     public function receipt(Sale $sale)
     {
@@ -23,6 +25,19 @@ class DocumentController extends Controller
         }
 
         $sale->load('items');
+
+        if (config('orio.fiscal_printer.driver') === 'axon') {
+            $commands = AxonG100::receipt($sale);
+            $sale->update(['receipt_xml' => implode("\n", $commands)]);
+
+            return response()->json([
+                'driver' => 'axon',
+                'base' => 'http://' . config('orio.fiscal_printer.host'),
+                'commands' => $commands,
+                'abort' => AxonG100::abortOpenDocument(),
+            ]);
+        }
+
         $xml = EpsonFpMateXml::receipt($sale);
         $sale->update(['receipt_xml' => $xml]);
 

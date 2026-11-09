@@ -19,6 +19,7 @@
                     $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
                     if (auth()->user()->can('admin')) {
                         $nav['users.index'] = 'Utenti';
+                        $nav['fiscal-printer'] = 'Stampante';
                     }
                 @endphp
                 @foreach ($nav as $route => $label)

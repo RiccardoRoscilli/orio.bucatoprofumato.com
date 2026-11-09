@@ -3,7 +3,9 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClosureController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\Dev\FakeAxonController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\FiscalPrinterController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
@@ -22,6 +24,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/vendite', [SaleController::class, 'index'])->name('sales.index');
     Route::post('/vendite', [SaleController::class, 'store'])->name('sales.store');
+    Route::put('/vendite/bozza', [SaleController::class, 'saveDraft'])->name('sales.draft');
     Route::get('/vendite/{sale}', [SaleController::class, 'show'])->name('sales.show');
     Route::post('/vendite/{sale}/annulla', [SaleController::class, 'cancel'])->name('sales.cancel');
 
@@ -56,6 +59,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/utenti', [UserController::class, 'index'])->name('users.index');
         Route::post('/utenti', [UserController::class, 'store'])->name('users.store');
         Route::put('/utenti/{user}', [UserController::class, 'update'])->name('users.update');
+
+        Route::get('/stampante', [FiscalPrinterController::class, 'index'])->name('fiscal-printer');
     });
 
     Route::get('/chiusura', [ClosureController::class, 'index'])->name('closure');
@@ -63,3 +68,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/chiusura/fiscale/conferma', [ClosureController::class, 'fiscalConfirm'])->name('closure.fiscal.confirm');
     Route::post('/chiusura/{closure}/vne', [ClosureController::class, 'vne'])->name('closure.vne');
 });
+
+// Simulatore della stampante fiscale Axon DADO (solo in locale)
+if (app()->isLocal()) {
+    Route::get('/dev/axon/_io', [FakeAxonController::class, 'io']);
+}

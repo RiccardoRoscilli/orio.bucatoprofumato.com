@@ -19,8 +19,8 @@ class Sale extends Model
 
     public const PAYMENT_METHODS = [
         'contanti' => 'Contanti (VNE)',
-        'carta' => 'Carta (VNE)',
-        'pos' => 'POS esterno',
+        'carta' => 'Carta (VNE)', // non piu' usato: la VNE prende solo contanti
+        'pos' => 'Carta / Bancomat (POS)',
     ];
 
     protected $fillable = [

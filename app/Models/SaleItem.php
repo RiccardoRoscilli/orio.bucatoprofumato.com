@@ -20,6 +20,11 @@ class SaleItem extends Model
         return $this->belongsTo(Sale::class);
     }
 
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
     public function lineTotalCents(): int
     {
         return (int) round($this->qty * $this->unit_price_cents);

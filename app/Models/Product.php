@@ -23,11 +23,15 @@ class Product extends Model
 
     /**
      * Cerca per codice a barre su EAN e SKU (alcuni prodotti hanno l'EAN come SKU e il campo
-     * ean vuoto), tollerando uno zero iniziale in piu' o in meno come in emmycasa.
+     * ean vuoto), ignorando gli zeri iniziali: sulle bottigliette il codice e' stampato male e
+     * lo scanner a volte legge l'EAN-13 senza lo zero iniziale (o con uno in piu').
      */
     public function scopeWhereBarcode(Builder $query, string $code): Builder
     {
-        $variants = array_unique([$code, ltrim($code, '0') ?: $code, '0' . $code]);
+        $stripped = ltrim($code, '0');
+        $variants = $stripped === ''
+            ? [$code]
+            : array_unique([$code, $stripped, '0' . $stripped, '00' . $stripped, '000' . $stripped]);
 
         return $query->where(fn ($q) => $q->whereIn('ean', $variants)->orWhereIn('sku', $variants));
     }

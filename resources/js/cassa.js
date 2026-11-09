@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { emitReceipt } from './fiscal/receipt.js';
 
 const euro = (cents) => (cents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 
@@ -24,8 +25,14 @@ const emptyCustomer = () => ({
     city: '', province: '', sdi_code: '', pec: '', email: '',
 });
 
-export default () => ({
+export default (initial = null) => ({
     rows: [],
+
+    // Bozza salvata sul server a ogni modifica del carrello
+    draftId: null,
+    saveState: null, // null | 'saving' | 'saved' | 'error'
+    saveTimer: null,
+    saveChain: Promise.resolve(),
 
     // Lettore codici a barre / ricerca
     scan: '',
@@ -77,7 +84,74 @@ export default () => ({
     },
 
     init() {
+        this.restore(initial);
+        this.$watch('draftSignature', () => this.scheduleSave());
         this.focusScan();
+    },
+
+    // Quello che finisce nella bozza: se cambia, si salva
+    get draftSignature() {
+        return JSON.stringify([
+            this.rows.map((r) => [r.product_id, r.qty, r.price]),
+            this.documentType,
+            this.customer.id,
+        ]);
+    },
+
+    // Dopo un ricaricamento: carrello in bozza, pagamento ancora in corso o documento da emettere
+    restore(state) {
+        if (!state) return;
+        this.rows = state.rows.map((row) => ({ ...row, key: nextKey() }));
+        this.documentType = state.document_type;
+        if (state.customer) this.selectCustomer(state.customer);
+        this.draftId = state.sale.id;
+
+        if (state.sale.status === 'in_pagamento') {
+            this.sale = state.sale;
+            this.busy = true;
+            this.payment = { state: 'pending', method: state.sale.payment_method, details: { amount: state.sale.total_cents, inserted: 0, rest: 0 } };
+            this.modal = 'payment';
+            this.poll();
+        } else if (state.sale.status === 'pagata') {
+            this.sale = state.sale;
+            this.busy = true;
+            this.modal = 'done';
+            this.result = { type: 'da_emettere' };
+        }
+    },
+
+    scheduleSave() {
+        if (this.busy || this.modal) return;
+        clearTimeout(this.saveTimer);
+        this.saveState = 'saving';
+        this.saveTimer = setTimeout(() => this.saveDraft(), 400);
+    },
+
+    saveDraft() {
+        const payload = {
+            document_type: this.documentType,
+            customer_id: this.customer.id,
+            items: this.validRows.map((r) => ({ product_id: r.product_id, qty: r.qty, price: String(r.price).replace(',', '.') })),
+        };
+        this.saveChain = this.saveChain.then(async () => {
+            try {
+                const { data } = await axios.put('/vendite/bozza', { ...payload, draft_id: this.draftId });
+                this.draftId = data.draft_id;
+                this.saveState = data.draft_id ? 'saved' : null;
+            } catch (e) {
+                this.saveState = 'error';
+            }
+        });
+        return this.saveChain;
+    },
+
+    async flushSave() {
+        if (this.saveTimer) {
+            clearTimeout(this.saveTimer);
+            this.saveTimer = null;
+            this.saveDraft();
+        }
+        await this.saveChain;
     },
 
     focusScan() {
@@ -256,8 +330,10 @@ export default () => ({
     async pay(method) {
         this.error = null;
         this.busy = true;
+        await this.flushSave();
         try {
             const { data } = await axios.post('/vendite', {
+                draft_id: this.draftId,
                 document_type: this.documentType,
                 customer_id: this.customer.id,
                 items: this.validRows.map((r) => ({
@@ -270,6 +346,7 @@ export default () => ({
                 })),
             });
             this.sale = data.sale;
+            this.draftId = data.sale.id;
 
             const start = await axios.post(`/vendite/${this.sale.id}/pagamento`, { method });
             if (start.data.state === 'completed') {
@@ -332,12 +409,8 @@ export default () => ({
 
         try {
             if (this.documentType === 'scontrino') {
-                const { data } = await axios.post(`/vendite/${this.sale.id}/scontrino`);
-                if (data.driver === 'epson') {
-                    await this.printOnEpson(data);
-                } else {
-                    this.result = { type: 'scontrino', sale: data.sale, previewUrl: data.preview_url };
-                }
+                const { sale, previewUrl } = await emitReceipt(this.sale.id);
+                this.result = { type: 'scontrino', sale, previewUrl };
             } else {
                 const res = await axios.post(`/vendite/${this.sale.id}/fattura`);
                 this.result = { type: 'fattura', ok: res.data.success, message: res.data.message, sale: res.data.sale, showUrl: res.data.show_url };
@@ -348,23 +421,12 @@ export default () => ({
         this.busy = false;
     },
 
-    // Stampa dal browser della postazione: FPMate deve essere raggiungibile in HTTPS con
-    // certificato attendibile (vedi docs/SPECIFICHE.md §4 e §7).
-    async printOnEpson({ url, xml }) {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/xml;charset=utf-8' }, body: xml });
-        const text = await res.text();
-        const doc = new DOMParser().parseFromString(text, 'text/xml');
-        const response = doc.getElementsByTagName('response')[0];
-        if (!response || response.getAttribute('success') !== 'true') {
-            throw new Error('La stampante ha rifiutato lo scontrino: ' + (response?.getAttribute('status') ?? text.slice(0, 120)));
-        }
-        const number = doc.getElementsByTagName('fiscalReceiptNumber')[0]?.textContent ?? '?';
-        const { data } = await axios.post(`/vendite/${this.sale.id}/scontrino/conferma`, { receipt_number: number });
-        this.result = { type: 'scontrino', sale: data.sale };
-    },
-
     newSale() {
         clearTimeout(this.pollTimer);
+        // Vendita conclusa: non e' piu' una bozza. Con "Svuota" invece la bozza va cancellata.
+        if (this.modal === 'done') this.draftId = null;
+        this.modal = null;
+        this.busy = false;
         this.rows = [];
         this.scan = '';
         this.results = [];

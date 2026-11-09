@@ -12,11 +12,11 @@ class PaymentController extends Controller
 {
     public function start(Request $request, Sale $sale, VneClient $vne)
     {
-        $method = $request->validate(['method' => 'required|in:contanti,carta,pos'])['method'];
+        $method = $request->validate(['method' => 'required|in:contanti,pos'])['method'];
 
         abort_unless(in_array($sale->status, ['bozza'], true), 422, 'La vendita non è in bozza.');
 
-        // POS esterno: l'operatore conferma di aver incassato col terminale
+        // Carta/bancomat sul POS della WyPOS (la VNE accetta solo contanti): l'operatore conferma l'incasso
         if ($method === 'pos') {
             $sale->update(['payment_method' => 'pos', 'status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now()]);
 
@@ -24,7 +24,7 @@ class PaymentController extends Controller
         }
 
         try {
-            $id = $vne->pay($sale->total_cents, $method === 'carta', $sale->id);
+            $id = $vne->pay($sale->total_cents, false, $sale->id);
         } catch (VneException $e) {
             return response()->json(['message' => $e->getMessage()], 502);
         }

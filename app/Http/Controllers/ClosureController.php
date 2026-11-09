@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashClosure;
 use App\Models\Sale;
 use App\Services\Closure\ClosureStatus;
+use App\Services\FiscalPrinter\AxonG100;
 use App\Services\FiscalPrinter\EpsonFpMateXml;
 use App\Services\Vne\VneClient;
 use App\Services\Vne\VneException;
@@ -43,9 +44,17 @@ class ClosureController extends Controller
         ]);
     }
 
-    /** Passo 1: chiusura fiscale. Simulata: registrata subito. Epson: XML per il browser. */
+    /** Passo 1: chiusura fiscale. Simulata: registrata subito. Axon/Epson: comandi per il browser. */
     public function fiscal(Request $request)
     {
+        if (config('orio.fiscal_printer.driver') === 'axon') {
+            return response()->json([
+                'driver' => 'axon',
+                'base' => 'http://' . config('orio.fiscal_printer.host'),
+                'commands' => AxonG100::zReport(),
+            ]);
+        }
+
         if (config('orio.fiscal_printer.driver') === 'epson') {
             return response()->json([
                 'driver' => 'epson',
@@ -59,7 +68,7 @@ class ClosureController extends Controller
         return response()->json(['driver' => 'fake', 'closure' => $this->createClosure($request, $number)]);
     }
 
-    /** Conferma dal browser dopo che la stampante Epson ha eseguito il report Z. */
+    /** Conferma dal browser dopo che la stampante ha eseguito il report Z. */
     public function fiscalConfirm(Request $request)
     {
         $data = $request->validate(['z_number' => 'required|string|max:30']);

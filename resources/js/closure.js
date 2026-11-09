@@ -1,4 +1,5 @@
 import axios from 'axios';
+import * as axon from './fiscal/axon.js';
 
 const firstError = (e) => e.response?.data?.message ?? e.message ?? 'Errore imprevisto.';
 
@@ -20,8 +21,8 @@ export default ({ fiscalUrl, confirmUrl, vneUrl, pendingVneId = null }) => ({
         try {
             const { data } = await axios.post(fiscalUrl);
             let closure = data.closure;
-            if (data.driver === 'epson') {
-                const zNumber = await this.printZ(data);
+            if (data.driver === 'axon' || data.driver === 'epson') {
+                const zNumber = data.driver === 'axon' ? await axon.printZ(data) : await this.printZ(data);
                 closure = (await axios.post(confirmUrl, { z_number: zNumber })).data.closure;
             }
             this.closureId = closure.id;

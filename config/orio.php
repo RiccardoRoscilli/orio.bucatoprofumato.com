@@ -41,6 +41,8 @@ return [
         'live' => env('OPENAPI_ENV', 'SANDBOX') === 'LIVE',
         'email' => env('OPENAPI_EMAIL'),
         'password' => env('OPENAPI_PASSWORD'),
+        // Prezzo per chiamata da rifatturare al cliente, in centesimi IVA esclusa
+        'price_cents' => (int) env('OPENAPI_PRICE_CENTS', 0),
     ],
 
     'bucato' => [

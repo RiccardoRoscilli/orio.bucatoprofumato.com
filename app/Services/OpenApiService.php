@@ -2,15 +2,20 @@
 
 namespace App\Services;
 
+use App\Models\OpenApiCall;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Dati societa' da partita IVA (company.openapi.com), stesso account di emmycasa.
+ * Ogni chiamata finisce in openapi_calls per poterla rifatturare (pagina /openapi).
  */
 class OpenApiService
 {
+    private const SERVICE = 'IT-start';
+
     public function isConfigured(): bool
     {
         return config('orio.openapi.email') && config('orio.openapi.password');
@@ -28,13 +33,22 @@ class OpenApiService
         $live = config('orio.openapi.live');
         $url = ($live ? 'https://company.openapi.com/IT-start/' : 'https://test.company.openapi.com/IT-start/') . urlencode($vatCode);
 
-        $response = Http::withToken($this->token())->timeout(30)->get($url);
-
-        // Token scaduto o revocato: rigenera e riprova una volta
-        if ($response->status() === 401) {
-            Cache::forget($this->cacheKey());
+        try {
             $response = Http::withToken($this->token())->timeout(30)->get($url);
+
+            // Token scaduto o revocato: rigenera e riprova una volta
+            if ($response->status() === 401) {
+                Cache::forget($this->cacheKey());
+                $response = Http::withToken($this->token())->timeout(30)->get($url);
+            }
+        } catch (ConnectionException $e) {
+            OpenApiCall::record(self::SERVICE, $vatCode, null, $live);
+
+            throw $e;
         }
+
+        // Registro per la rifatturazione: l'account e' condiviso con emmycasa
+        OpenApiCall::record(self::SERVICE, $vatCode, $response->status(), $live);
 
         if (! $response->successful() || ! isset($response->json('data')[0])) {
             Log::warning('OpenAPI P.IVA ' . $vatCode . ': HTTP ' . $response->status());
@@ -54,7 +68,7 @@ class OpenApiService
             'city' => $office['town'] ?? '',
             'province' => $office['province'] ?? '',
             // Nessun codice destinatario registrato: 0000000, la fattura va nel cassetto fiscale
-            'sdi_code' => $company['sdiCode'] ?: '0000000',
+            'sdi_code' => ($company['sdiCode'] ?? '') ?: '0000000',
         ];
     }
 

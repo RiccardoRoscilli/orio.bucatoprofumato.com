@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\Dev\FakeAxonController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\FiscalPrinterController;
+use App\Http\Controllers\OpenApiCallController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
@@ -61,6 +62,9 @@ Route::middleware('auth')->group(function () {
         Route::put('/utenti/{user}', [UserController::class, 'update'])->name('users.update');
 
         Route::get('/stampante', [FiscalPrinterController::class, 'index'])->name('fiscal-printer');
+
+        Route::get('/openapi', [OpenApiCallController::class, 'index'])->name('openapi-calls');
+        Route::get('/openapi/csv', [OpenApiCallController::class, 'csv'])->name('openapi-calls.csv');
     });
 
     Route::get('/chiusura', [ClosureController::class, 'index'])->name('closure');

@@ -20,6 +20,7 @@
                     if (auth()->user()->can('admin')) {
                         $nav['users.index'] = 'Utenti';
                         $nav['fiscal-printer'] = 'Stampante';
+                        $nav['openapi-calls'] = 'OpenAPI';
                     }
                 @endphp
                 @foreach ($nav as $route => $label)

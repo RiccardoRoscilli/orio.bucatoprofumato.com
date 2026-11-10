@@ -38,7 +38,7 @@
                     this.busy = false;
                 },
                 async send() {
-                    if (! /^[?:{|,;eOfpBQ]/.test(this.pkt) && ! confirm('Questo comando può stampare o modificare la stampante fiscale. Inviarlo?')) return;
+                    if (! /^[?:{|,;eOfpBQ]/.test(this.pkt) && ! await askConfirm({ title: 'Inviare il comando alla stampante?', message: 'Questo comando può stampare o modificare la stampante fiscale.', items: [{ label: 'Comando', value: this.pkt }], confirmLabel: 'Invia', danger: true })) return;
                     this.busy = true; this.error = null; this.reply = null;
                     try { this.reply = await axonPrinter.command(@js($base), this.pkt); } catch (e) { this.error = e.message; }
                     this.busy = false;

@@ -1,5 +1,5 @@
 <x-layout title="Chiusura">
-    <div x-data="closure({ fiscalUrl: @js(route('closure.fiscal')), confirmUrl: @js(route('closure.fiscal.confirm')), vneUrl: @js(route('closure.vne', '__ID__')), pendingVneId: @js($pendingVne?->id) })">
+    <div x-data="closure({ fiscalUrl: @js(route('closure.fiscal')), confirmUrl: @js(route('closure.fiscal.confirm')), vneUrl: @js(route('closure.vne', '__ID__')), pendingVneId: @js($pendingVne?->id), fiscalClosedToday: @js($fiscalClosedToday), summary: @js([['label' => 'Contanti (VNE)', 'value' => euro($totals['contanti'])], ['label' => 'Carta / Bancomat (POS)', 'value' => euro($totals['pos'])], ['label' => 'Scontrini e fatture', 'value' => $totals['scontrini'] . ' + ' . $totals['fatture']]]) })">
         <div class="mb-4 flex flex-wrap items-center gap-3">
             <div class="mr-auto">
                 <h1 class="text-xl font-bold">Chiusura giornata · {{ today()->format('d/m/Y') }}</h1>

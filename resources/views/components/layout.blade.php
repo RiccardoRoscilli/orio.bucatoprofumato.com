@@ -77,5 +77,6 @@
     @auth
         <x-customer-modal />
     @endauth
+    <x-confirm-dialog />
 </body>
 </html>

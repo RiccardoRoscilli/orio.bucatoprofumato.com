@@ -102,7 +102,7 @@
                     @endif
                 @endif
                 @if (in_array($sale->status, ['bozza', 'pagata'], true))
-                    <form method="POST" action="{{ route('sales.cancel', $sale) }}" onsubmit="return confirm('Annullare la vendita?')">
+                    <form method="POST" action="{{ route('sales.cancel', $sale) }}" data-confirm="Annullare la vendita?" data-confirm-label="Annulla vendita" data-confirm-danger>
                         @csrf
                         <button class="btn-light w-full text-red-700">Annulla vendita</button>
                     </form>

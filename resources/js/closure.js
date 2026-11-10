@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as axon from './fiscal/axon.js';
+import { askConfirm } from './confirm';
 
 const firstError = (e) => e.response?.data?.message ?? e.message ?? 'Errore imprevisto.';
 
@@ -8,13 +9,20 @@ const firstError = (e) => e.response?.data?.message ?? e.message ?? 'Errore impr
  * della cassa automatica VNE. Se la VNE non risponde la chiusura fiscale resta valida e si
  * puo' ripetere solo il passo VNE.
  */
-export default ({ fiscalUrl, confirmUrl, vneUrl, pendingVneId = null }) => ({
+export default ({ fiscalUrl, confirmUrl, vneUrl, pendingVneId = null, summary = [], fiscalClosedToday = false }) => ({
     step: null, // null | 'fiscal' | 'vne' | 'done'
     error: null,
     closureId: pendingVneId,
 
     async closeDay() {
-        if (!confirm('Eseguire la chiusura giornata?\n\n1. Chiusura fiscale della stampante RT (invio corrispettivi)\n2. Chiusura della cassa automatica VNE')) return;
+        const ok = await askConfirm({
+            title: 'Chiudere la giornata?',
+            message: 'Viene fatta la chiusura fiscale della stampante RT, con l\'invio dei corrispettivi, e poi la chiusura della cassa automatica.',
+            items: summary,
+            warning: fiscalClosedToday ? 'La chiusura fiscale di oggi è già stata fatta: ne verrà stampata un\'altra.' : '',
+            confirmLabel: 'Chiudi giornata',
+        });
+        if (!ok) return;
 
         this.error = null;
         this.step = 'fiscal';

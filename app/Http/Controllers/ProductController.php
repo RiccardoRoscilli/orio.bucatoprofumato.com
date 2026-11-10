@@ -92,6 +92,10 @@ class ProductController extends Controller
 
     public function sync(Request $request, BucatoProductSyncService $service)
     {
+        // L'export del sito puo' richiedere diversi minuti: niente limite di tempo PHP
+        set_time_limit(0);
+        ignore_user_abort(true);
+
         try {
             $s = $service->sync();
         } catch (\Throwable $e) {

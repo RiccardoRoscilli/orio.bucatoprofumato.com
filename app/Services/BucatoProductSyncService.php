@@ -20,7 +20,7 @@ class BucatoProductSyncService
      */
     public function sync(): array
     {
-        $response = Http::timeout(120)->withUserAgent('orio-sync')->get(config('orio.bucato.products_csv_url'));
+        $response = Http::timeout(config('orio.bucato.timeout', 600))->withUserAgent('orio-sync')->get(config('orio.bucato.products_csv_url'));
 
         if (! $response->successful()) {
             throw new \RuntimeException('Download del catalogo da bucatoprofumato.com non riuscito (HTTP ' . $response->status() . ')');

@@ -48,6 +48,8 @@ return [
     'bucato' => [
         // Export catalogo di bucatoprofumato.com (stesso endpoint di emmycasa)
         'products_csv_url' => env('BUCATO_PRODUCTS_CSV_URL', 'https://www.bucatoprofumato.com/productexport/index/export/'),
+        // L'export viene generato al volo da Magento e puo' richiedere diversi minuti
+        'timeout' => (int) env('BUCATO_EXPORT_TIMEOUT', 600),
     ],
 
     'company' => [

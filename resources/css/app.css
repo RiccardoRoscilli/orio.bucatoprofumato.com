@@ -59,3 +59,11 @@
 .dt-container .dt-length select { @apply input w-auto py-1.5; }
 .dt-container .dt-info { @apply text-sm text-stone-500; }
 .dt-container .dt-paging .dt-paging-button.current { @apply rounded-lg; }
+
+/* Testi della scheda prodotto (HTML ripulito da bucatoprofumato.com) */
+.product-text { @apply space-y-3 leading-relaxed text-stone-700; }
+.product-text strong, .product-text b { @apply font-semibold text-stone-900; }
+.product-text ul { @apply list-disc space-y-2 pl-5; }
+.product-text ol { @apply list-decimal space-y-2 pl-5; }
+.product-text li > p { @apply m-0; }
+.product-text h2, .product-text h3, .product-text h4 { @apply pt-2 font-bold text-stone-900; }

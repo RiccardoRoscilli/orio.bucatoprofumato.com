@@ -10,7 +10,8 @@ const ITALIAN = italian('prodotti', 'nome, SKU, EAN, categoria, formato');
 
 
 const el = document.getElementById('products-table');
-const { dataUrl, priceUrl, alignUrl, isAdmin } = el.dataset;
+const { dataUrl, showUrl, priceUrl, alignUrl, isAdmin } = el.dataset;
+const productUrl = (id) => escape(showUrl.replace('__ID__', id));
 const admin = isAdmin === '1';
 let filter = el.dataset.initialFilter;
 
@@ -36,7 +37,7 @@ const table = new DataTable(el, {
     columns: [
         {
             data: 'image_url', orderable: false, width: '56px',
-            render: (url) => url ? `<img src="${escape(url)}" alt="" loading="lazy" class="h-10 w-10 rounded-lg object-cover ring-1 ring-stone-200">` : '',
+            render: (url, type, p) => url ? `<a href="${productUrl(p.id)}" tabindex="-1"><img src="${escape(url)}" alt="" loading="lazy" class="h-10 w-10 rounded-lg object-cover ring-1 ring-stone-200"></a>` : '',
         },
         {
             data: 'name',
@@ -44,7 +45,7 @@ const table = new DataTable(el, {
                 const meta = [p.format, p.category].filter(Boolean).map(escape).join(' · ');
                 const flags = (!p.active ? ' · <span class="text-red-600">non attivo sul sito</span>' : '')
                     + (p.active && !p.in_stock ? ' · <span class="text-amber-700">esaurito sul sito</span>' : '');
-                return `<div class="font-semibold">${escape(name)}</div><div class="text-xs text-stone-500">${meta}${flags}</div>`;
+                return `<a href="${productUrl(p.id)}" class="font-semibold hover:text-brand-700 hover:underline">${escape(name)}</a><div class="text-xs text-stone-500">${meta}${flags}</div>`;
             },
         },
         { data: 'sku', render: (v) => `<span class="text-xs">${escape(v)}</span>` },

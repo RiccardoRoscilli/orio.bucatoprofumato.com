@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Support\ProductHtml;
 use Illuminate\Support\Facades\Http;
 use League\Csv\Reader;
 
@@ -45,7 +46,10 @@ class BucatoProductSyncService
                 'name' => trim($record['Name'] ?? $sku),
                 'format' => trim($record['Quantity'] ?? '') ?: null,
                 'category' => $this->mainCategory($record['Category'] ?? ''),
+                'categories' => $this->categories($record['Category'] ?? '') ?: null,
                 'image_url' => trim($record['Image'] ?? '') ?: null,
+                'short_description' => ProductHtml::clean($record['ShortDescription'] ?? null),
+                'description' => ProductHtml::clean($record['Description'] ?? null),
                 'site_price_cents' => $sitePrice,
                 'active' => ($record['Status'] ?? '') === 'Enabled',
                 'in_stock' => ($record['In Stock'] ?? '') === 'Yes',
@@ -76,8 +80,14 @@ class BucatoProductSyncService
     /** "Tutti i prodotti, Per il Bucato, Spray" -> "Per il Bucato" */
     private function mainCategory(string $categories): ?string
     {
-        $parts = array_values(array_filter(array_map('trim', explode(',', $categories)), fn ($c) => $c !== '' && $c !== 'Tutti i prodotti'));
+        return explode(', ', $this->categories($categories))[0] ?: null;
+    }
 
-        return $parts[0] ?? null;
+    /** Categorie senza "Tutti i prodotti" e senza doppioni: "Per il Bucato, Spray" */
+    private function categories(string $categories): string
+    {
+        $parts = array_filter(array_map('trim', explode(',', $categories)), fn ($c) => $c !== '' && $c !== 'Tutti i prodotti');
+
+        return mb_substr(implode(', ', array_unique($parts)), 0, 500);
     }
 }

@@ -50,6 +50,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/prodotti/dati', [ProductController::class, 'data'])->name('products.data');
     Route::get('/prodotti/cerca', [ProductController::class, 'search'])->name('products.search');
     Route::get('/prodotti/barcode/{code}', [ProductController::class, 'barcode'])->name('products.barcode');
+    Route::get('/prodotti/{product}', [ProductController::class, 'show'])->whereNumber('product')->name('products.show');
 
     Route::middleware('can:admin')->group(function () {
         Route::post('/prodotti/sincronizza', [ProductController::class, 'sync'])->name('products.sync');

@@ -36,7 +36,7 @@
     <div id="review-banner" class="{{ $filter === 'prezzi' && $toReview ? '' : 'hidden' }} mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
         <span class="mr-auto">Questi prodotti hanno in cassa un prezzo diverso da quello attuale su bucatoprofumato.com. Correggi il prezzo o allinealo al sito.</span>
         @can('admin')
-            <form method="POST" action="{{ route('products.align-all') }}" onsubmit="return confirm('Allineare al sito tutti i {{ $toReview }} prezzi da rivedere?')">
+            <form method="POST" action="{{ route('products.align-all') }}" data-confirm="Allineare al sito tutti i {{ $toReview }} prezzi da rivedere?" data-confirm-label="Allinea prezzi">
                 @csrf
                 <button class="btn-primary py-2 text-sm">Allinea tutti al sito</button>
             </form>
@@ -46,6 +46,7 @@
     <div class="card p-4">
         <table id="products-table" class="products-table w-full text-sm"
                data-data-url="{{ route('products.data') }}"
+               data-show-url="{{ route('products.show', '__ID__') }}"
                data-price-url="{{ route('products.price', '__ID__') }}"
                data-align-url="{{ route('products.align', '__ID__') }}"
                data-is-admin="{{ auth()->user()->can('admin') ? '1' : '0' }}"

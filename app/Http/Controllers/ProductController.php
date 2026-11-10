@@ -71,6 +71,15 @@ class ProductController extends Controller
         ]);
     }
 
+    /** Scheda prodotto: in pratica la pagina del prodotto su bucatoprofumato.com, piu' i dati di cassa. */
+    public function show(Product $product)
+    {
+        return view('products.show', [
+            'product' => $product,
+            'siteUrl' => 'https://www.bucatoprofumato.com/catalogsearch/result/?q=' . urlencode(trim($product->name)),
+        ]);
+    }
+
     private function applyFilter($query, string $filter): void
     {
         match ($filter) {

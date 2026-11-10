@@ -61,10 +61,8 @@
                             <input class="h-11 w-14 border-y border-stone-200 text-center text-lg font-semibold [appearance:textfield] focus:outline-none" inputmode="numeric" x-model.number="row.qty">
                             <button type="button" @click="changeQty(row, 1)" class="h-11 w-11 rounded-r-xl bg-stone-100 text-xl font-bold hover:bg-stone-200" aria-label="Aumenta">+</button>
                         </div>
-                        <div class="flex items-center gap-1">
-                            <span class="text-stone-400">€</span>
-                            <input class="input w-20 py-2 text-right tabular-nums" inputmode="decimal" x-model="row.price" placeholder="0,00">
-                        </div>
+                        {{-- Prezzo di listino, non modificabile: in negozio niente sconti né promozioni --}}
+                        <div class="w-20 text-right text-sm text-stone-500 tabular-nums" x-text="'€ ' + row.price + (parseFloat(row.qty) !== 1 ? ' cad.' : '')"></div>
                         <div class="w-20 text-right font-bold tabular-nums" x-text="euro(lineCents(row))"></div>
                         <button type="button" class="flex h-11 w-9 items-center justify-center rounded-lg text-2xl text-stone-400 hover:bg-red-50 hover:text-red-600" @click="removeRow(index)" aria-label="Rimuovi riga">×</button>
                     </div>

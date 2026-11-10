@@ -9,6 +9,7 @@ use App\Services\FiscalPrinter\AxonG100;
 use App\Services\FiscalPrinter\EpsonFpMateXml;
 use App\Services\Vne\FakeVneClient;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class SaleController extends Controller
 {
@@ -47,7 +48,9 @@ class SaleController extends Controller
                 [
                     'description' => $item->description,
                     'qty' => (float) $item->qty,
-                    'price' => number_format($item->unit_price_cents / 100, 2, ',', ''),
+                    // Bozza: sempre il prezzo di listino attuale. Vendita gia' in pagamento o
+                    // pagata: il prezzo con cui e' stata incassata.
+                    'price' => number_format(($sale->status === 'bozza' && $item->product ? $item->product->price_cents : $item->unit_price_cents) / 100, 2, ',', ''),
                     'vat_rate' => $item->vat_rate,
                 ],
             ))->values(),
@@ -67,7 +70,7 @@ class SaleController extends Controller
             'items' => 'present|array',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|numeric|min:0.001',
-            'items.*.price' => 'required|numeric|min:0',
+            'items.*.price' => 'nullable',
         ]);
 
         $draft = $this->findDraft($request, $data['draft_id'] ?? null);
@@ -120,7 +123,7 @@ class SaleController extends Controller
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|numeric|min:0.001',
-            'items.*.price' => 'required|numeric|min:0',
+            'items.*.price' => 'nullable',
         ], [
             'customer_id.required_if' => 'Per la fattura serve il cliente: cerca la partita IVA.',
             'items.required' => 'Aggiungi almeno una riga.',
@@ -163,10 +166,18 @@ class SaleController extends Controller
         return $sale;
     }
 
-    /** Righe ricostruite dal catalogo: descrizione, SKU e IVA vengono dal prodotto, non dal browser. */
+    /**
+     * Righe ricostruite dal catalogo: descrizione, SKU, IVA e prezzo vengono dal prodotto, non
+     * dal browser. In negozio si vende sempre a prezzo pieno (le promozioni valgono solo per
+     * l'online): il prezzo e' quello di listino gestito dagli admin in Prodotti.
+     */
     private function fillSale(Sale $sale, array $data): void
     {
         $products = Product::whereIn('id', collect($data['items'])->pluck('product_id'))->get()->keyBy('id');
+
+        if ($noPrice = $products->first(fn (Product $p) => ! $p->price_cents)) {
+            throw ValidationException::withMessages(['items' => "«{$noPrice->name}» non ha un prezzo di listino: va impostato in Prodotti."]);
+        }
 
         $sale->items()->delete();
         foreach ($data['items'] as $item) {
@@ -176,7 +187,7 @@ class SaleController extends Controller
                 'sku' => $product->sku,
                 'description' => trim($product->name),
                 'qty' => $item['qty'],
-                'unit_price_cents' => (int) round($item['price'] * 100),
+                'unit_price_cents' => $product->price_cents,
                 'vat_rate' => $product->vat_rate,
             ]);
         }

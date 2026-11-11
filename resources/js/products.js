@@ -10,7 +10,7 @@ const ITALIAN = italian('prodotti', 'nome, SKU, EAN, categoria, formato');
 
 
 const el = document.getElementById('products-table');
-const { dataUrl, showUrl, priceUrl, alignUrl, isAdmin } = el.dataset;
+const { dataUrl, showUrl, priceUrl, alignUrl, shopUrl, isAdmin } = el.dataset;
 const productUrl = (id) => escape(showUrl.replace('__ID__', id));
 const admin = isAdmin === '1';
 let filter = el.dataset.initialFilter;
@@ -44,12 +44,21 @@ const table = new DataTable(el, {
             render: (name, type, p) => {
                 const meta = [p.format, p.category].filter(Boolean).map(escape).join(' · ');
                 const flags = (!p.active ? ' · <span class="text-red-600">non attivo sul sito</span>' : '')
+                    + (p.active && !p.sold_in_shop ? ' · <span class="text-stone-500">non venduto in negozio</span>' : '')
                     + (p.active && !p.in_stock ? ' · <span class="text-amber-700">esaurito sul sito</span>' : '');
                 return `<a href="${productUrl(p.id)}" class="font-semibold hover:text-brand-700 hover:underline">${escape(name)}</a><div class="text-xs text-stone-500">${meta}${flags}</div>`;
             },
         },
         { data: 'sku', render: (v) => `<span class="text-xs">${escape(v)}</span>` },
         { data: 'ean', render: (v) => `<span class="font-mono text-xs">${escape(v)}</span>` },
+        {
+            data: 'sold_in_shop', className: 'dt-center', orderable: false,
+            render: (sold, type, p) => {
+                if (type !== 'display') return sold ? 1 : 0;
+                if (!admin) return sold ? '<span class="text-brand-700">sì</span>' : '<span class="text-stone-400">no</span>';
+                return `<label class="inline-flex cursor-pointer items-center gap-1.5"><input type="checkbox" data-shop="${p.id}" ${sold ? 'checked' : ''} class="h-5 w-5 accent-brand-600"><span class="text-xs text-stone-500">${sold ? 'sì' : 'no'}</span></label>`;
+            },
+        },
         {
             data: 'stock_qty', className: 'dt-right tabular-nums',
             render: (qty, type) => type !== 'display' ? qty
@@ -104,6 +113,18 @@ async function savePrice(input) {
 }
 
 $(el).on('change', 'input[data-price]', (e) => savePrice(e.target));
+$(el).on('change', 'input[data-shop]', async (e) => {
+    const input = e.target;
+    const label = input.nextElementSibling;
+    try {
+        const { data } = await window.axios.patch(shopUrl.replace('__ID__', input.dataset.shop), { sold_in_shop: input.checked });
+        input.checked = data.sold_in_shop;
+        label.textContent = data.sold_in_shop ? 'sì' : 'no';
+    } catch (err) {
+        input.checked = !input.checked;
+        label.textContent = 'errore';
+    }
+});
 $(el).on('keydown', 'input[data-price]', (e) => { if (e.key === 'Enter') e.target.blur(); });
 $(el).on('click', 'button[data-align]', async (e) => {
     await window.axios.post(alignUrl.replace('__ID__', e.target.dataset.align));

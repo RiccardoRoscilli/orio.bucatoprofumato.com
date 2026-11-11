@@ -10,7 +10,7 @@ class Product extends Model
 {
     protected $fillable = [
         'sku', 'ean', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
-        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'in_stock', 'synced_at',
+        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'in_stock', 'synced_at',
     ];
 
     protected $casts = [
@@ -18,6 +18,7 @@ class Product extends Model
         'price_cents' => 'integer',
         'vat_rate' => 'integer',
         'active' => 'boolean',
+        'sold_in_shop' => 'boolean',
         'in_stock' => 'boolean',
         'stock_qty' => 'float',
         'synced_at' => 'datetime',
@@ -36,6 +37,12 @@ class Product extends Model
             : array_unique([$code, $stripped, '0' . $stripped, '00' . $stripped, '000' . $stripped]);
 
         return $query->where(fn ($q) => $q->whereIn('ean', $variants)->orWhereIn('sku', $variants));
+    }
+
+    /** Vendibili in cassa: attivi sul sito e scelti dalla titolare per il negozio. */
+    public function scopeSellable(Builder $query): Builder
+    {
+        return $query->where('active', true)->where('sold_in_shop', true);
     }
 
     /** Prodotti il cui prezzo in cassa e' diverso da quello attuale sul sito. */

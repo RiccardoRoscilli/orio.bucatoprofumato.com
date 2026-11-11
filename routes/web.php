@@ -64,6 +64,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/prodotti/allinea-prezzi', [ProductController::class, 'alignPrice'])->name('products.align-all');
         Route::post('/prodotti/{product}/allinea-prezzo', [ProductController::class, 'alignPrice'])->name('products.align');
         Route::patch('/prodotti/{product}/prezzo', [ProductController::class, 'updatePrice'])->name('products.price');
+        Route::patch('/prodotti/{product}/negozio', [ProductController::class, 'updateShop'])->name('products.shop');
 
         Route::get('/utenti', [UserController::class, 'index'])->name('users.index');
         Route::post('/utenti', [UserController::class, 'store'])->name('users.store');

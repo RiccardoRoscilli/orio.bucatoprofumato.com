@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class ProductController extends Controller
 {
     /** Colonne ordinabili della tabella, nell'ordine in cui le mostra la DataTable. */
-    private const COLUMNS = [1 => 'name', 2 => 'sku', 3 => 'ean', 4 => 'stock_qty', 5 => 'site_price_cents', 6 => 'price_cents'];
+    private const COLUMNS = [1 => 'name', 2 => 'sku', 3 => 'ean', 5 => 'stock_qty', 6 => 'site_price_cents', 7 => 'price_cents'];
 
     public function index(Request $request)
     {
@@ -63,6 +63,7 @@ class ProductController extends Controller
                 'format' => $p->format,
                 'category' => $p->category,
                 'active' => $p->active,
+                'sold_in_shop' => $p->sold_in_shop,
                 'in_stock' => $p->in_stock,
                 'site_price_cents' => $p->site_price_cents,
                 'price_cents' => $p->price_cents,
@@ -88,6 +89,8 @@ class ProductController extends Controller
             'disattivi' => $query->where('active', false),
             'prezzi' => $query->where('active', true)->priceToReview(),
             'sottozero' => $query->where('stock_qty', '<', 0),
+            'negozio' => $query->where('active', true)->where('sold_in_shop', true),
+            'esclusi' => $query->where('sold_in_shop', false),
             'tutti' => null,
             default => $query->where('active', true),
         };
@@ -121,6 +124,14 @@ class ProductController extends Controller
         return back()->with('status', $message);
     }
 
+    /** Interruttore "in vendita in negozio" (solo admin). */
+    public function updateShop(Request $request, Product $product)
+    {
+        $product->update(['sold_in_shop' => $request->validate(['sold_in_shop' => 'required|boolean'])['sold_in_shop']]);
+
+        return response()->json(['sold_in_shop' => $product->sold_in_shop]);
+    }
+
     public function updatePrice(Request $request, Product $product)
     {
         $price = $request->validate(['price' => ['required', 'regex:/^\d+([.,]\d{1,2})?$/']])['price'];
@@ -152,10 +163,14 @@ class ProductController extends Controller
      */
     public function barcode(string $code)
     {
-        $products = Product::where('active', true)->whereBarcode(trim($code))->limit(5)->get();
+        $products = Product::sellable()->whereBarcode(trim($code))->limit(5)->get();
 
         if ($products->isEmpty()) {
-            return response()->json(['message' => "Nessun prodotto attivo con codice {$code}."], 404);
+            $excluded = Product::where('active', true)->where('sold_in_shop', false)->whereBarcode(trim($code))->first();
+
+            return response()->json(['message' => $excluded
+                ? "«" . trim($excluded->name) . "» non è in vendita in negozio."
+                : "Nessun prodotto attivo con codice {$code}."], 404);
         }
 
         return response()->json(['products' => $products->map->toCartItem()]);
@@ -169,7 +184,7 @@ class ProductController extends Controller
             return response()->json(['products' => []]);
         }
 
-        $products = Product::where('active', true)
+        $products = Product::sellable()
             ->where(function ($q) use ($terms) {
                 foreach ($terms as $term) {
                     $q->where(fn ($q) => $q->where('name', 'like', "%{$term}%")

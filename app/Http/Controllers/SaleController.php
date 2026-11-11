@@ -175,6 +175,10 @@ class SaleController extends Controller
     {
         $products = Product::whereIn('id', collect($data['items'])->pluck('product_id'))->get()->keyBy('id');
 
+        if ($excluded = $products->first(fn (Product $p) => ! $p->sold_in_shop)) {
+            throw ValidationException::withMessages(['items' => "«" . trim($excluded->name) . "» non è in vendita in negozio: toglilo dal carrello."]);
+        }
+
         if ($noPrice = $products->first(fn (Product $p) => ! $p->price_cents)) {
             throw ValidationException::withMessages(['items' => "«{$noPrice->name}» non ha un prezzo di listino: va impostato in Prodotti."]);
         }

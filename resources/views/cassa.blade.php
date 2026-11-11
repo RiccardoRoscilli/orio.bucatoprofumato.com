@@ -149,7 +149,7 @@
             </div>
         </aside>
 
-        {{-- Finestra incasso VNE --}}
+        {{-- Finestra incasso: VNE (contanti), POS (carta), esito --}}
         <div x-show="modal" x-cloak class="fixed inset-0 z-30 flex items-center justify-center bg-stone-900/50 p-4">
             <div class="card w-full max-w-md p-6 shadow-xl" @click.stop>
                 <template x-if="modal === 'payment'">
@@ -202,6 +202,21 @@
                                 </div>
                             </div>
                         @endif
+                    </div>
+                </template>
+
+                <template x-if="modal === 'pos'">
+                    <div class="text-center">
+                        <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Pagamento con carta / bancomat</div>
+                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(sale.total_cents)"></div>
+                        {{-- POS non collegato a Orio ne' alla stampante fiscale: l'importo si digita a mano sul POS.
+                             Se in futuro il pagamento carta della stampante viene legato al POS (comandi [P]/[E]
+                             del protocollo G100) questo passaggio va tolto, altrimenti il cliente paga due volte. --}}
+                        <p class="mt-4 rounded-xl bg-amber-50 p-3 text-amber-800">Digita <strong class="tabular-nums" x-text="euro(sale.total_cents)"></strong> sul POS e fai avvicinare la carta al cliente.<br><strong>Conferma solo dopo l'esito positivo sul POS:</strong> lo scontrino parte quando premi «Pagamento riuscito».</p>
+                        <div class="mt-5 grid gap-2">
+                            <button type="button" class="btn-primary py-4 text-lg" @click="confirmPos(true)">Pagamento riuscito</button>
+                            <button type="button" class="btn-light" @click="confirmPos(false)">Carta rifiutata / annulla</button>
+                        </div>
                     </div>
                 </template>
 

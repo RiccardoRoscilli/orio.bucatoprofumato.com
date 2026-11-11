@@ -56,7 +56,7 @@ export default (initial = null) => ({
     busy: false,
 
     // Finestra di incasso / esito
-    modal: null, // null | 'payment' | 'done'
+    modal: null, // null | 'payment' | 'pos' | 'done'
     sale: null,
     payment: null,
     scenario: 'completed',
@@ -348,6 +348,12 @@ export default (initial = null) => ({
             this.sale = data.sale;
             this.draftId = data.sale.id;
 
+            // Carta: il POS non e' collegato a Orio, si aspetta che l'operatore confermi l'esito
+            if (method === 'pos') {
+                this.modal = 'pos';
+                return;
+            }
+
             const start = await axios.post(`/vendite/${this.sale.id}/pagamento`, { method });
             if (start.data.state === 'completed') {
                 await this.emitDocument();
@@ -360,6 +366,24 @@ export default (initial = null) => ({
             this.modal = 'payment';
             this.poll();
         } catch (e) {
+            this.error = firstError(e);
+            this.busy = false;
+        }
+    },
+
+    // Esito del pagamento con carta riferito dall'operatore
+    async confirmPos(paid) {
+        if (!paid) {
+            this.modal = null;
+            this.busy = false;
+            this.error = 'Pagamento con carta non riuscito: la vendita è ancora aperta.';
+            return;
+        }
+        try {
+            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos' });
+            await this.emitDocument();
+        } catch (e) {
+            this.modal = null;
             this.error = firstError(e);
             this.busy = false;
         }

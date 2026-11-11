@@ -16,7 +16,8 @@ class PaymentController extends Controller
 
         abort_unless(in_array($sale->status, ['bozza'], true), 422, 'La vendita non è in bozza.');
 
-        // Carta/bancomat sul POS della WyPOS (la VNE accetta solo contanti): l'operatore conferma l'incasso
+        // Carta/bancomat sul POS (la VNE accetta solo contanti): la cassa chiama questo solo dopo
+        // che l'operatore ha confermato in Orio che il POS ha dato esito positivo
         if ($method === 'pos') {
             $sale->update(['payment_method' => 'pos', 'status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now()]);
 

@@ -50,6 +50,11 @@ const table = new DataTable(el, {
         },
         { data: 'sku', render: (v) => `<span class="text-xs">${escape(v)}</span>` },
         { data: 'ean', render: (v) => `<span class="font-mono text-xs">${escape(v)}</span>` },
+        {
+            data: 'stock_qty', className: 'dt-right tabular-nums',
+            render: (qty, type) => type !== 'display' ? qty
+                : `<span class="${qty < 0 ? 'font-semibold text-red-600' : qty > 0 ? 'font-semibold' : 'text-stone-400'}">${(Math.round(qty * 1000) / 1000).toLocaleString('it-IT')}</span>`,
+        },
         { data: 'site_price_cents', className: 'dt-right text-stone-500 tabular-nums', render: euro },
         {
             data: 'price_cents', className: 'dt-right',

@@ -27,7 +27,10 @@
                                 <div class="truncate font-semibold" x-text="product.description"></div>
                                 <div class="text-xs text-stone-500" x-text="[product.sku, product.format, product.ean].filter(Boolean).join(' · ')"></div>
                             </div>
-                            <div class="font-bold tabular-nums" x-text="euro(Math.round(parseFloat(product.price.replace(',', '.')) * 100))"></div>
+                            <div class="text-right">
+                                <div class="font-bold tabular-nums" x-text="euro(Math.round(parseFloat(product.price.replace(',', '.')) * 100))"></div>
+                                <div class="text-xs tabular-nums" :class="product.stock > 0 ? 'text-stone-500' : 'text-amber-700'" x-text="`in negozio ${fmtQty(product.stock ?? 0)}`"></div>
+                            </div>
                         </button>
                     </template>
                 </div>
@@ -55,6 +58,9 @@
                         <div class="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-auto">
                             <div class="line-clamp-2 font-semibold leading-tight" x-text="row.description"></div>
                             <div class="text-xs text-stone-500" x-text="[row.sku, row.format].filter(Boolean).join(' · ')"></div>
+                            {{-- Si vende comunque: l'avviso serve a ricordarsi di caricare o contare la merce --}}
+                            <div class="text-xs font-semibold text-amber-700" x-show="row.stock !== undefined && row.stock < (parseFloat(row.qty) || 0)" x-cloak
+                                 x-text="`In negozio ne risultano ${fmtQty(row.stock)}: controlla il carico`"></div>
                         </div>
                         <div class="flex items-center">
                             <button type="button" @click="changeQty(row, -1)" class="h-11 w-11 rounded-l-xl bg-stone-100 text-xl font-bold hover:bg-stone-200" aria-label="Diminuisci">−</button>

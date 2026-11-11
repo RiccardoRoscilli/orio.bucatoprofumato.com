@@ -21,7 +21,7 @@
 
     <div class="mb-4 flex flex-wrap items-center gap-2">
         @php
-            $filters = ['attivi' => 'Attivi', 'prezzi' => 'Prezzi da rivedere', 'disattivi' => 'Non attivi sul sito', 'tutti' => 'Tutti'];
+            $filters = ['attivi' => 'Attivi', 'prezzi' => 'Prezzi da rivedere', 'sottozero' => 'Giacenza sotto zero', 'disattivi' => 'Non attivi sul sito', 'tutti' => 'Tutti'];
         @endphp
         @foreach ($filters as $key => $label)
             <button type="button" data-filter="{{ $key }}" class="filter-chip {{ $filter === $key ? 'is-active' : '' }}">
@@ -57,6 +57,7 @@
                     <th>Prodotto</th>
                     <th>SKU</th>
                     <th>EAN</th>
+                    <th class="dt-right">In negozio</th>
                     <th class="dt-right">Prezzo sito</th>
                     <th class="dt-right">Prezzo cassa</th>
                     <th></th>

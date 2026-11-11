@@ -10,6 +10,7 @@ use App\Http\Controllers\OpenApiCallController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
+use App\Http\Controllers\StockController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -52,7 +53,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/prodotti/barcode/{code}', [ProductController::class, 'barcode'])->name('products.barcode');
     Route::get('/prodotti/{product}', [ProductController::class, 'show'])->whereNumber('product')->name('products.show');
 
+    Route::get('/magazzino', [StockController::class, 'index'])->name('stock.index');
+    Route::post('/magazzino/carico', [StockController::class, 'load'])->name('stock.load');
+
     Route::middleware('can:admin')->group(function () {
+        Route::get('/magazzino/inventario', [StockController::class, 'index'])->name('stock.inventory');
+        Route::post('/magazzino/inventario', [StockController::class, 'adjust'])->name('stock.adjust');
+
         Route::post('/prodotti/sincronizza', [ProductController::class, 'sync'])->name('products.sync');
         Route::post('/prodotti/allinea-prezzi', [ProductController::class, 'alignPrice'])->name('products.align-all');
         Route::post('/prodotti/{product}/allinea-prezzo', [ProductController::class, 'alignPrice'])->name('products.align');

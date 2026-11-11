@@ -7,6 +7,8 @@ const euro = (cents) => (cents / 100).toLocaleString('it-IT', { style: 'currency
 let rowSeq = 0;
 const nextKey = () => `r${++rowSeq}`;
 
+const fmtQty = (qty) => (Math.round(qty * 1000) / 1000).toLocaleString('it-IT');
+
 const parsePrice = (value) => parseFloat(String(value).replace(',', '.')) || 0;
 
 const sounds = {
@@ -65,6 +67,7 @@ export default (initial = null) => ({
     pollTimer: null,
 
     euro,
+    fmtQty,
 
     get totalCents() {
         return this.rows.reduce((sum, r) => sum + this.lineCents(r), 0);

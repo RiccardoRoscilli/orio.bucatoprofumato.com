@@ -26,7 +26,8 @@
                 @endif
             </div>
 
-            <div class="mt-3 flex flex-wrap gap-2">
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                <span class="badge {{ $product->stock_qty < 0 ? 'bg-red-50 text-red-700' : ($product->stock_qty > 0 ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-600') }}">In negozio: {{ $product->stockLabel() }}</span>
                 @unless ($product->active)
                     <span class="badge bg-red-50 text-red-700">Non attivo sul sito: non si vende in cassa</span>
                 @endunless
@@ -62,6 +63,22 @@
                 <div class="card mt-6 p-5">
                     <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Dettagli</h2>
                     <div class="product-text">{!! $product->description !!}</div>
+                </div>
+            @endif
+
+            @if ($movements->isNotEmpty())
+                <div class="card mt-6 p-5">
+                    <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Ultimi movimenti di magazzino</h2>
+                    <table class="w-full text-sm">
+                        @foreach ($movements as $m)
+                            <tr class="border-t border-stone-100 first:border-0">
+                                <td class="py-1.5 pr-3 whitespace-nowrap text-stone-500">{{ $m->created_at->format('d/m H:i') }}</td>
+                                <td class="py-1.5 pr-3">{{ $m->typeLabel() }}@if ($m->sale_id) <a href="{{ route('sales.show', $m->sale_id) }}" class="text-brand-700 hover:underline">n. {{ $m->sale_id }}</a>@endif{{ $m->note ? ' · ' . $m->note : '' }}</td>
+                                <td class="py-1.5 pr-3 text-right font-semibold tabular-nums {{ $m->qty < 0 ? 'text-red-600' : 'text-brand-700' }}">{{ $m->qty > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format($m->qty, 3, ',', '.'), '0'), ',') }}</td>
+                                <td class="py-1.5 text-right tabular-nums text-stone-500">= {{ rtrim(rtrim(number_format($m->stock_after, 3, ',', '.'), '0'), ',') }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
                 </div>
             @endif
 

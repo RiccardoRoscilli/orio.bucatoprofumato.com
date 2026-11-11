@@ -13,10 +13,9 @@
             <div class="mx-auto flex max-w-7xl items-center gap-2 px-4 py-2">
                 <a href="{{ route('cassa') }}" class="mr-2 flex shrink-0 items-center gap-2 md:mr-4">
                     <img src="{{ asset('images/logo-elda.png') }}" alt="Le Essenze di Elda" class="h-8 w-auto">
-                    <span class="hidden text-xs font-semibold uppercase tracking-widest text-brand-700 lg:inline">cassa</span>
                 </a>
                 @php
-                    $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
+                    $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
                     if (auth()->user()->can('admin')) {
                         $nav['users.index'] = 'Utenti';
                         $nav['fiscal-printer'] = 'Stampante';

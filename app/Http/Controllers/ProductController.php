@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class ProductController extends Controller
 {
     /** Colonne ordinabili della tabella, nell'ordine in cui le mostra la DataTable. */
-    private const COLUMNS = [1 => 'name', 2 => 'sku', 3 => 'ean', 4 => 'site_price_cents', 5 => 'price_cents'];
+    private const COLUMNS = [1 => 'name', 2 => 'sku', 3 => 'ean', 4 => 'stock_qty', 5 => 'site_price_cents', 6 => 'price_cents'];
 
     public function index(Request $request)
     {
@@ -66,6 +66,7 @@ class ProductController extends Controller
                 'in_stock' => $p->in_stock,
                 'site_price_cents' => $p->site_price_cents,
                 'price_cents' => $p->price_cents,
+                'stock_qty' => $p->stock_qty,
                 'to_review' => $p->hasPriceToReview(),
             ]),
         ]);
@@ -76,6 +77,7 @@ class ProductController extends Controller
     {
         return view('products.show', [
             'product' => $product,
+            'movements' => $product->stockMovements()->with('user:id,name')->latest('id')->limit(20)->get(),
             'siteUrl' => 'https://www.bucatoprofumato.com/catalogsearch/result/?q=' . urlencode(trim($product->name)),
         ]);
     }
@@ -85,6 +87,7 @@ class ProductController extends Controller
         match ($filter) {
             'disattivi' => $query->where('active', false),
             'prezzi' => $query->where('active', true)->priceToReview(),
+            'sottozero' => $query->where('stock_qty', '<', 0),
             'tutti' => null,
             default => $query->where('active', true),
         };

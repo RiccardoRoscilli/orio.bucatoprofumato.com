@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Product extends Model
 {
@@ -18,6 +19,7 @@ class Product extends Model
         'vat_rate' => 'integer',
         'active' => 'boolean',
         'in_stock' => 'boolean',
+        'stock_qty' => 'float',
         'synced_at' => 'datetime',
     ];
 
@@ -47,6 +49,17 @@ class Product extends Model
         return $this->site_price_cents !== null && $this->price_cents !== $this->site_price_cents;
     }
 
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
+    /** Giacenza da mostrare: intera se non ha decimali ("3", "1,5"). */
+    public function stockLabel(): string
+    {
+        return rtrim(rtrim(number_format($this->stock_qty, 3, ',', '.'), '0'), ',');
+    }
+
     public function toCartItem(): array
     {
         return [
@@ -58,6 +71,7 @@ class Product extends Model
             'image_url' => $this->image_url,
             'price' => number_format($this->price_cents / 100, 2, ',', ''),
             'vat_rate' => $this->vat_rate,
+            'stock' => $this->stock_qty,
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Stock\StockService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,7 +35,27 @@ class Sale extends Model
         'paid_cents' => 'integer',
         'paid_at' => 'datetime',
         'closed_at' => 'datetime',
+        'stock_unloaded_at' => 'datetime',
     ];
+
+    /**
+     * Giacenze: la merce esce dal negozio quando la vendita e' pagata (anche se il documento
+     * viene emesso dopo) e rientra se una vendita gia' scaricata viene annullata.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (Sale $sale) {
+            if (! $sale->wasChanged('status')) {
+                return;
+            }
+
+            if (in_array($sale->status, ['pagata', 'scontrinata', 'fatturata'], true) && ! $sale->stock_unloaded_at) {
+                app(StockService::class)->unloadSale($sale);
+            } elseif ($sale->status === 'annullata' && $sale->stock_unloaded_at) {
+                app(StockService::class)->restoreSale($sale, auth()->id());
+            }
+        });
+    }
 
     public function items(): HasMany
     {

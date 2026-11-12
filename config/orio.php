@@ -1,6 +1,18 @@
 <?php
 
 return [
+    'pos' => [
+        // manual = l'operatore digita l'importo sul POS e conferma in Orio (nessun collegamento)
+        // multisafepay = SmartPOS in cloud mode: Orio manda l'importo al terminale e legge l'esito
+        // fake = terminale simulato per le prove
+        'driver' => env('POS_DRIVER', 'manual'),
+        'api_key' => env('MULTISAFEPAY_POS_API_KEY'), // chiave del GRUPPO terminali (Devices > Terminals > Manage groups)
+        'terminal_id' => env('MULTISAFEPAY_TERMINAL_ID'), // TID del terminale
+        'base_url' => env('MULTISAFEPAY_POS_BASE_URL', 'https://api.multisafepay.com/v1/json'),
+        'notification_url' => env('MULTISAFEPAY_NOTIFICATION_URL'), // facoltativo: Orio legge l'esito da solo
+        'timeout' => 15,
+    ],
+
     'vne' => [
         // fake = cassa simulata in orio, direct = chiamata dal server a https://VNE_HOST/selfcashapi/
         'driver' => env('VNE_DRIVER', 'fake'),

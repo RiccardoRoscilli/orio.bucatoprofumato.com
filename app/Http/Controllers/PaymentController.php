@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Services\Pos\CloudPos;
+use App\Services\Pos\FakePos;
+use App\Services\Pos\PosException;
 use App\Services\Vne\FakeVneClient;
 use App\Services\Vne\VneClient;
 use App\Services\Vne\VneException;
@@ -10,18 +13,32 @@ use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
-    public function start(Request $request, Sale $sale, VneClient $vne)
+    public function start(Request $request, Sale $sale, VneClient $vne, CloudPos $pos)
     {
-        $method = $request->validate(['method' => 'required|in:contanti,pos'])['method'];
+        $data = $request->validate(['method' => 'required|in:contanti,pos', 'manual' => 'boolean']);
+        $method = $data['method'];
 
         abort_unless(in_array($sale->status, ['bozza'], true), 422, 'La vendita non è in bozza.');
 
-        // Carta/bancomat sul POS (la VNE accetta solo contanti): la cassa chiama questo solo dopo
-        // che l'operatore ha confermato in Orio che il POS ha dato esito positivo
-        if ($method === 'pos') {
+        // Carta/bancomat con POS non collegato (o terminale cloud irraggiungibile): la cassa chiama
+        // questo solo dopo che l'operatore ha confermato in Orio l'esito positivo sul POS
+        if ($method === 'pos' && (config('orio.pos.driver') === 'manual' || ($data['manual'] ?? false))) {
             $sale->update(['payment_method' => 'pos', 'status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now()]);
 
             return response()->json(['state' => 'completed', 'sale' => $sale]);
+        }
+
+        // POS in cloud: l'importo va al terminale, l'esito arriva col polling
+        if ($method === 'pos') {
+            try {
+                $orderId = $pos->start($sale);
+            } catch (PosException $e) {
+                return response()->json(['message' => $e->getMessage()], 502);
+            }
+
+            $sale->update(['payment_method' => 'pos', 'status' => 'in_pagamento', 'pos_order_id' => $orderId]);
+
+            return response()->json(['state' => 'pending', 'order_id' => $orderId]);
         }
 
         try {
@@ -39,10 +56,14 @@ class PaymentController extends Controller
      * Polling dell'esito (tipo 2) chiamato dalla cassa ogni secondo: aggiorna la vendita
      * appena il pagamento si chiude e restituisce lo stato da mostrare all'operatore.
      */
-    public function poll(Sale $sale, VneClient $vne)
+    public function poll(Sale $sale, VneClient $vne, CloudPos $pos)
     {
         if ($sale->status !== 'in_pagamento') {
             return response()->json(['state' => $sale->status === 'pagata' ? 'completed' : 'cancelled', 'sale' => $sale]);
+        }
+
+        if ($sale->pos_order_id) {
+            return $this->pollPos($sale, $pos);
         }
 
         try {
@@ -82,11 +103,48 @@ class PaymentController extends Controller
         return response()->json(['state' => $status === 'partial' ? 'partial' : 'cancelled', 'details' => $details, 'sale' => $sale]);
     }
 
-    public function cancel(Request $request, Sale $sale, VneClient $vne)
+    /** Esito del pagamento sul POS cloud: completato, rifiutato (si puo' riprovare) o annullato. */
+    private function pollPos(Sale $sale, CloudPos $pos)
     {
-        $mode = (int) $request->validate(['mode' => 'required|in:1,2'])['mode'];
+        try {
+            $result = $pos->status($sale->pos_order_id, $sale->id);
+        } catch (PosException $e) {
+            return response()->json(['state' => 'error', 'message' => $e->getMessage()]);
+        }
 
+        if ($result['status'] === 'completed') {
+            $sale->update(['status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now(), 'pos_transaction_id' => $result['transaction_id']]);
+
+            return response()->json(['state' => 'completed', 'sale' => $sale]);
+        }
+
+        if (in_array($result['status'], CloudPos::FINAL_CANCELLED, true)) {
+            $sale->update(['status' => 'bozza', 'pos_order_id' => null]);
+
+            return response()->json(['state' => 'cancelled', 'pos_status' => $result['status'], 'sale' => $sale]);
+        }
+
+        return response()->json(['state' => $result['status'] === 'declined' ? 'declined' : 'pending']);
+    }
+
+    public function cancel(Request $request, Sale $sale, VneClient $vne, CloudPos $pos)
+    {
         abort_unless($sale->status === 'in_pagamento', 422, 'Nessun pagamento in corso.');
+
+        // POS cloud: l'annullo arriva al terminale, l'esito lo conferma il polling
+        if ($sale->pos_order_id) {
+            try {
+                $status = $pos->cancel($sale->pos_order_id, $sale->id);
+            } catch (PosException $e) {
+                return response()->json(['message' => $e->getMessage()], 502);
+            }
+
+            return response()->json(['message' => $status === 'completed'
+                ? 'Impossibile annullare: il cliente ha già pagato.'
+                : 'Annullamento inviato al POS…']);
+        }
+
+        $mode = (int) $request->validate(['mode' => 'required|in:1,2'])['mode'];
 
         try {
             $response = $vne->cancel($sale->vne_transaction_id, $mode, $sale->id);
@@ -109,6 +167,13 @@ class PaymentController extends Controller
     /** Solo cassa simulata: sceglie come andrà a finire il pagamento in corso. */
     public function scenario(Request $request, Sale $sale)
     {
+        if ($sale->pos_order_id) {
+            abort_unless(config('orio.pos.driver') === 'fake', 404);
+            FakePos::setScenario($sale->pos_order_id, (string) $request->input('scenario'));
+
+            return response()->json(['ok' => true]);
+        }
+
         abort_unless(config('orio.vne.driver') === 'fake', 404);
 
         FakeVneClient::setScenario((string) $sale->vne_transaction_id, $request->input('scenario'));

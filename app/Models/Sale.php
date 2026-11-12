@@ -26,7 +26,7 @@ class Sale extends Model
 
     protected $fillable = [
         'user_id', 'customer_id', 'status', 'document_type', 'payment_method',
-        'total_cents', 'paid_cents', 'vne_transaction_id', 'receipt_number', 'receipt_xml',
+        'total_cents', 'paid_cents', 'vne_transaction_id', 'pos_order_id', 'pos_transaction_id', 'receipt_number', 'receipt_xml',
         'fattura24_doc_id', 'fattura24_doc_number', 'fattura24_xml', 'notes', 'paid_at', 'closed_at',
     ];
 

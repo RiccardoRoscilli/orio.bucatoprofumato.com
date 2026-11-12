@@ -27,7 +27,7 @@ const emptyCustomer = () => ({
     city: '', province: '', sdi_code: '', pec: '', email: '',
 });
 
-export default (initial = null) => ({
+export default (initial = null, posDriver = 'manual') => ({
     rows: [],
 
     // Bozza salvata sul server a ogni modifica del carrello
@@ -58,7 +58,8 @@ export default (initial = null) => ({
     busy: false,
 
     // Finestra di incasso / esito
-    modal: null, // null | 'payment' | 'pos' | 'done'
+    modal: null, // null | 'payment' (VNE) | 'card' (POS collegato) | 'pos' (POS a mano) | 'done'
+    posDriver,
     sale: null,
     payment: null,
     scenario: 'completed',
@@ -113,7 +114,7 @@ export default (initial = null) => ({
             this.sale = state.sale;
             this.busy = true;
             this.payment = { state: 'pending', method: state.sale.payment_method, details: { amount: state.sale.total_cents, inserted: 0, rest: 0 } };
-            this.modal = 'payment';
+            this.modal = state.sale.payment_method === 'pos' ? 'card' : 'payment';
             this.poll();
         } else if (state.sale.status === 'pagata') {
             this.sale = state.sale;
@@ -351,9 +352,13 @@ export default (initial = null) => ({
             this.sale = data.sale;
             this.draftId = data.sale.id;
 
-            // Carta: il POS non e' collegato a Orio, si aspetta che l'operatore confermi l'esito
-            if (method === 'pos') {
+            // Carta con POS non collegato: si aspetta che l'operatore confermi l'esito
+            if (method === 'pos' && this.posDriver === 'manual') {
                 this.modal = 'pos';
+                return;
+            }
+            if (method === 'pos') {
+                await this.startCard();
                 return;
             }
 
@@ -374,6 +379,27 @@ export default (initial = null) => ({
         }
     },
 
+    // POS collegato: l'importo va al terminale e Orio aspetta l'esito
+    async startCard() {
+        this.payment = { state: 'sending', method: 'pos' };
+        this.scenario = 'completed';
+        this.cancelMessage = null;
+        this.modal = 'card';
+        try {
+            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos' });
+            this.payment.state = 'pending';
+            this.poll();
+        } catch (e) {
+            this.payment = { state: 'unreachable', method: 'pos', message: firstError(e) };
+        }
+    },
+
+    // Terminale non raggiungibile: si incassa digitando l'importo sul POS, con conferma manuale
+    manualCard() {
+        clearTimeout(this.pollTimer);
+        this.modal = 'pos';
+    },
+
     // Esito del pagamento con carta riferito dall'operatore
     async confirmPos(paid) {
         if (!paid) {
@@ -383,7 +409,7 @@ export default (initial = null) => ({
             return;
         }
         try {
-            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos' });
+            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos', manual: true });
             await this.emitDocument();
         } catch (e) {
             this.modal = null;
@@ -412,7 +438,7 @@ export default (initial = null) => ({
                 this.payment.message = firstError(e);
             }
             this.poll();
-        }, 1000);
+        }, this.payment?.method === 'pos' ? 2000 : 1000);
     },
 
     async setScenario(value) {

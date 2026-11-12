@@ -18,6 +18,8 @@ class SaleController extends Controller
         return view('cassa', [
             'vneDriver' => config('orio.vne.driver'),
             'scenarios' => FakeVneClient::SCENARIOS,
+            'posDriver' => config('orio.pos.driver'),
+            'posScenarios' => \App\Services\Pos\FakePos::SCENARIOS,
             'initial' => $this->openSaleState($request),
         ]);
     }

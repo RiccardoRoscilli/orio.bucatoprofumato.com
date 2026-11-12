@@ -1,5 +1,5 @@
 <x-layout title="Cassa">
-    <div x-data="cassa(@js($initial))" class="grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div x-data="cassa(@js($initial), @js($posDriver))" class="grid gap-5 lg:grid-cols-[1fr_360px]">
         {{-- Scansione e righe della vendita --}}
         <section class="space-y-4">
             <div class="card relative p-3">
@@ -201,6 +201,55 @@
                                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Cassa simulata · come va a finire?</div>
                                 <div class="flex flex-wrap gap-2">
                                     @foreach ($scenarios as $key => $label)
+                                        <button type="button" class="rounded-full px-3 py-1.5 text-sm font-semibold ring-1"
+                                                :class="scenario === '{{ $key }}' ? 'bg-amber-100 text-amber-900 ring-amber-300' : 'ring-stone-300 text-stone-600'"
+                                                @click="setScenario('{{ $key }}')">{{ $label }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                </template>
+
+                <template x-if="modal === 'card'">
+                    <div class="text-center">
+                        <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Pagamento con carta / bancomat</div>
+                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(sale.total_cents)"></div>
+                        {{-- Importo inviato al SmartPOS MultiSafepay: lo scontrino parte solo a pagamento completato.
+                             Il POS non va collegato anche alla stampante fiscale, altrimenti il cliente paga due volte. --}}
+                        <div class="mt-5 rounded-xl p-3 font-semibold"
+                             :class="{
+                                'bg-amber-50 text-amber-800': ['sending', 'pending'].includes(payment.state),
+                                'bg-red-50 text-red-700': ['declined', 'error', 'unreachable'].includes(payment.state),
+                                'bg-stone-100 text-stone-700': payment.state === 'cancelled',
+                             }">
+                            <span x-show="payment.state === 'sending'">Invio dell'importo al POS…</span>
+                            <span x-show="payment.state === 'pending'">Importo sul POS: fai avvicinare la carta al cliente.</span>
+                            <span x-show="payment.state === 'declined'">Carta rifiutata: il cliente può riprovare sul POS, anche con un'altra carta.</span>
+                            <span x-show="payment.state === 'error'" x-text="`Esito non ancora leggibile (${payment.message}). Riprovo…`"></span>
+                            <span x-show="payment.state === 'unreachable'" x-text="payment.message"></span>
+                            <span x-show="payment.state === 'cancelled'">Pagamento annullato o scaduto: la vendita è tornata aperta.</span>
+                        </div>
+                        <p x-show="cancelMessage && payment.state !== 'cancelled'" x-text="cancelMessage" class="mt-2 text-sm text-stone-500"></p>
+
+                        <div class="mt-5 grid gap-2" x-show="['pending', 'declined', 'error'].includes(payment.state)">
+                            <button type="button" class="btn-light" @click="cancelPayment()">Annulla il pagamento sul POS</button>
+                        </div>
+                        <div class="mt-5 grid gap-2" x-show="payment.state === 'unreachable'">
+                            <button type="button" class="btn-primary" @click="startCard()">Riprova</button>
+                            <button type="button" class="btn-light" @click="manualCard()">Incassa digitando l'importo sul POS</button>
+                            <p class="text-xs text-stone-500">Prima di incassare a mano controlla che sul POS non sia già comparso l'importo, per non far pagare due volte il cliente.</p>
+                            <button type="button" class="btn-light" @click="modal = null; busy = false">Torna alla vendita</button>
+                        </div>
+                        <div class="mt-5" x-show="payment.state === 'cancelled'">
+                            <button type="button" class="btn-primary w-full" @click="modal = null">Torna alla vendita</button>
+                        </div>
+
+                        @if ($posDriver === 'fake')
+                            <div class="mt-5 border-t border-dashed border-stone-300 pt-4 text-left" x-show="['pending', 'declined'].includes(payment.state)">
+                                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">POS simulato · come va a finire?</div>
+                                <div class="flex flex-wrap gap-2">
+                                    @foreach ($posScenarios as $key => $label)
                                         <button type="button" class="rounded-full px-3 py-1.5 text-sm font-semibold ring-1"
                                                 :class="scenario === '{{ $key }}' ? 'bg-amber-100 text-amber-900 ring-amber-300' : 'ring-stone-300 text-stone-600'"
                                                 @click="setScenario('{{ $key }}')">{{ $label }}</button>

@@ -16,6 +16,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(\App\Services\Pos\CloudPos::class, fn () => config('orio.pos.driver') === 'multisafepay'
+            ? new \App\Services\Pos\MultiSafepayPos()
+            : new \App\Services\Pos\FakePos());
         $this->app->bind(VneClient::class, fn () => match (config('orio.vne.driver')) {
             'direct' => new DirectVneClient(),
             default => new FakeVneClient(),

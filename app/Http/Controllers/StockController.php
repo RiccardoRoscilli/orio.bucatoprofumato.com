@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Services\Stock\StockExcel;
 use App\Services\Stock\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
  * Magazzino del negozio: carico della merce arrivata (tutti gli operatori), inventario con
@@ -76,6 +80,51 @@ class StockController extends Controller
                 ? "Giacenza di «{$product->name}» portata a {$product->stockLabel()} (" . ($movement->qty > 0 ? '+' : '') . $this->qty($movement->qty) . ').'
                 : "Giacenza di «{$product->name}» confermata: {$product->stockLabel()}.",
         ]);
+    }
+
+    /** Modello Excel con i prodotti in vendita in negozio e la giacenza attuale. */
+    public function excelTemplate(StockExcel $excel)
+    {
+        $writer = new Xlsx($excel->template());
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), 'Orio-magazzino-' . now()->format('Y-m-d') . '.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /** Carico (somma) o inventario (sostituisce, solo admin) dal modello Excel compilato. */
+    public function excelImport(Request $request, StockExcel $excel)
+    {
+        $data = $request->validate([
+            'mode' => 'required|in:carico,inventario',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt,ods|max:10240',
+            'note' => 'nullable|string|max:255',
+        ], ['file.mimes' => 'Carica il file Excel (.xlsx).']);
+
+        if ($data['mode'] === 'inventario') {
+            Gate::authorize('admin');
+        }
+
+        // Copia del file caricato, per poter ricontrollare cosa e' stato importato
+        $file = $request->file('file');
+        $file->storeAs('magazzino', now()->format('Y-m-d_His') . '_' . $data['mode'] . '_'
+            . Str::slug($request->user()->name) . '.' . strtolower($file->getClientOriginalExtension()), 'local');
+
+        $note = trim(($data['mode'] === 'carico' ? 'Carico da Excel' : 'Inventario da Excel') . ' ' . ($data['note'] ?? ''));
+        $r = $excel->import($file, $data['mode'], $request->user()->id, $note);
+
+        $message = $data['mode'] === 'carico'
+            ? "Carico da Excel registrato: {$r['changed']} prodotti, " . $this->qty($r['pieces']) . ' pezzi.'
+            : "Inventario da Excel: {$r['changed']} giacenze corrette, {$r['unchanged']} già giuste.";
+        $message .= " Righe senza quantità ignorate: {$r['skipped']}.";
+
+        $redirect = redirect()->route($data['mode'] === 'carico' ? 'stock.index' : 'stock.inventory')->with('status', $message);
+        if ($r['problems']) {
+            $redirect->with('error', 'Righe non importate (' . count($r['problems']) . '): ' . implode('; ', array_slice($r['problems'], 0, 15))
+                . (count($r['problems']) > 15 ? '…' : ''));
+        }
+
+        return $redirect;
     }
 
     private function qty(float $qty): string

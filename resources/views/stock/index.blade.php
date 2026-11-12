@@ -98,6 +98,24 @@
                 </div>
             @endif
 
+            <form method="POST" action="{{ route('stock.excel.import') }}" enctype="multipart/form-data" class="card space-y-3 p-5">
+                @csrf
+                <input type="hidden" name="mode" value="{{ $mode }}">
+                <h2 class="font-bold">{{ $mode === 'carico' ? 'Carico da Excel' : 'Inventario da Excel' }}</h2>
+                <p class="text-xs text-stone-500">
+                    @if ($mode === 'carico')
+                        Scarica il modello, scrivi nella colonna «Quantità» i pezzi arrivati e ricaricalo: si <strong>sommano</strong> alla giacenza. Le righe vuote vengono ignorate.
+                    @else
+                        Scarica il modello, scrivi nella colonna «Quantità» i pezzi contati e ricaricalo: <strong>sostituiscono</strong> la giacenza. Le righe vuote restano come sono.
+                    @endif
+                </p>
+                <a href="{{ route('stock.excel') }}" class="btn-light w-full py-2 text-center">Scarica modello Excel</a>
+                <input type="file" name="file" accept=".xlsx,.xls,.ods,.csv" required class="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-stone-100 file:px-3 file:py-2 file:font-semibold">
+                <input name="note" class="input" placeholder="{{ $mode === 'carico' ? 'Nota, es. DDT 123 del 10/11' : 'Nota, es. inventario di novembre' }}">
+                @error('file')<p class="text-sm text-red-700">{{ $message }}</p>@enderror
+                <button class="btn-primary w-full py-3">{{ $mode === 'carico' ? 'Carica merce dal file' : 'Aggiorna giacenze dal file' }}</button>
+            </form>
+
             <div class="card p-5">
                 <h2 class="font-bold">Sotto zero <span class="font-normal text-stone-500">({{ $belowZero->count() }})</span></h2>
                 <p class="mb-2 text-xs text-stone-500">Venduti più pezzi di quelli caricati: merce non ancora caricata o giacenza da contare.</p>

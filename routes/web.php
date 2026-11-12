@@ -55,6 +55,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/magazzino', [StockController::class, 'index'])->name('stock.index');
     Route::post('/magazzino/carico', [StockController::class, 'load'])->name('stock.load');
+    Route::get('/magazzino/excel', [StockController::class, 'excelTemplate'])->name('stock.excel');
+    Route::post('/magazzino/excel', [StockController::class, 'excelImport'])->name('stock.excel.import');
 
     Route::middleware('can:admin')->group(function () {
         Route::get('/magazzino/inventario', [StockController::class, 'index'])->name('stock.inventory');

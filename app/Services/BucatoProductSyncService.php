@@ -71,8 +71,9 @@ class BucatoProductSyncService
             $stats['updated']++;
         }
 
-        // Spariti dall'export: non piu' vendibili in cassa (restano per lo storico vendite)
-        $stats['deactivated'] = Product::whereNotIn('sku', $seen)->where('active', true)->update(['active' => false]);
+        // Spariti dall'export: non piu' vendibili in cassa (restano per lo storico vendite).
+        // I prodotti creati in Orio (shop_only) non sono sul sito e restano come sono.
+        $stats['deactivated'] = Product::whereNotIn('sku', $seen)->where('active', true)->where('shop_only', false)->update(['active' => false]);
 
         return $stats;
     }

@@ -28,6 +28,9 @@
 
             <div class="mt-3 flex flex-wrap items-center gap-2">
                 <span class="badge {{ $product->stock_qty < 0 ? 'bg-red-50 text-red-700' : ($product->stock_qty > 0 ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-600') }}">In negozio: {{ $product->stockLabel() }}</span>
+                @if ($product->shop_only)
+                    <span class="badge bg-brand-50 text-brand-700">Solo negozio: creato in Orio, non è sul sito</span>
+                @endif
                 @if ($product->active && ! $product->sold_in_shop)
                     <span class="badge bg-stone-200 text-stone-700">Non venduto in negozio</span>
                 @endif

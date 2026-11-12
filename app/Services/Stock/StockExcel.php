@@ -35,7 +35,7 @@ class StockExcel
         $products = Product::sellable()->orderBy('name')->get(['id', 'sku', 'ean', 'name', 'format', 'stock_qty']);
         $row = 2;
         foreach ($products as $p) {
-            $sheet->fromArray([$p->id, $p->sku, null, trim($p->name), $p->format, (float) $p->stock_qty, null], null, "A{$row}");
+            $sheet->fromArray([$p->id, $p->sku, null, trim($p->name), $p->format, (float) $p->stock_qty, null], null, "A{$row}", true);
             // EAN come testo, altrimenti Excel lo mostra in notazione scientifica
             $sheet->setCellValueExplicit("C{$row}", (string) $p->ean, DataType::TYPE_STRING);
             $row++;

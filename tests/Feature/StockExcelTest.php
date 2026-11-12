@@ -53,6 +53,7 @@ class StockExcelTest extends TestCase
         $this->assertSame('Quantità', $rows[0][6]);
         $this->assertSame(['Ammorbidente', 'Bucato'], array_column(array_slice($rows, 1), 3));
         $this->assertSame('8000000000017', $rows[1][2]);
+        $this->assertEquals(0, $rows[1][5]);
     }
 
     public function test_load_adds_quantities_and_skips_empty_rows(): void

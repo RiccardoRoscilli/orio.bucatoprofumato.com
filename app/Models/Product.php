@@ -10,10 +10,11 @@ class Product extends Model
 {
     protected $fillable = [
         'sku', 'ean', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
-        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'in_stock', 'synced_at',
+        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'in_stock', 'synced_at',
     ];
 
     protected $casts = [
+        'shop_only' => 'boolean',
         'site_price_cents' => 'integer',
         'price_cents' => 'integer',
         'vat_rate' => 'integer',

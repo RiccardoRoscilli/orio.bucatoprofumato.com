@@ -6,10 +6,12 @@ import closure from './closure';
 import stockEntry from './stock';
 import { registerConfirm, askConfirm } from './confirm';
 import { emitReceipt } from './fiscal/receipt';
+import { voidSale } from './fiscal/void';
 import * as axonPrinter from './fiscal/axon';
 
 window.Alpine = Alpine;
 window.emitReceipt = emitReceipt;
+window.voidSale = voidSale;
 window.axonPrinter = axonPrinter;
 window.askConfirm = askConfirm;
 registerConfirm();

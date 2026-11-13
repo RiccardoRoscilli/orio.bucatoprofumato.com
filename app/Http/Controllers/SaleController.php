@@ -208,6 +208,8 @@ class SaleController extends Controller
     public function cancel(Sale $sale)
     {
         abort_if(in_array($sale->status, ['scontrinata', 'fatturata', 'in_pagamento'], true), 422, 'Vendita non annullabile in questo stato.');
+        // Pagata col SmartPOS: l'annullo passa dal rimborso sulla carta (SaleVoidController)
+        abort_if($sale->status === 'pagata' && $sale->pos_transaction_id, 422, 'Usa «Annulla e rimborsa»: il pagamento con carta va rimborsato.');
 
         $sale->update(['status' => 'annullata', 'closed_at' => now()]);
 

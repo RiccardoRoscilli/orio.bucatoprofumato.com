@@ -28,6 +28,7 @@ class Sale extends Model
         'user_id', 'customer_id', 'status', 'document_type', 'payment_method',
         'total_cents', 'paid_cents', 'vne_transaction_id', 'pos_order_id', 'pos_transaction_id', 'receipt_number', 'receipt_xml',
         'fattura24_doc_id', 'fattura24_doc_number', 'fattura24_xml', 'notes', 'paid_at', 'closed_at',
+        'receipt_voided_at', 'void_receipt_number', 'refunded_at', 'voided_by',
     ];
 
     protected $casts = [
@@ -35,6 +36,8 @@ class Sale extends Model
         'paid_cents' => 'integer',
         'paid_at' => 'datetime',
         'closed_at' => 'datetime',
+        'receipt_voided_at' => 'datetime',
+        'refunded_at' => 'datetime',
         'stock_unloaded_at' => 'datetime',
     ];
 
@@ -90,5 +93,10 @@ class Sale extends Model
     public function isClosed(): bool
     {
         return in_array($this->status, ['scontrinata', 'fatturata', 'annullata'], true);
+    }
+
+    public function voidedBy()
+    {
+        return $this->belongsTo(User::class, 'voided_by');
     }
 }

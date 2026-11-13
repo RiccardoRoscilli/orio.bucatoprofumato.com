@@ -34,6 +34,10 @@ class FakePos extends CloudPos
             return [200, ['success' => true, 'data' => ['order_id' => $body['order_id'], 'session_id' => 'fake', 'events_token' => 'fake']]];
         }
 
+        if (str_ends_with($path, '/refunds')) {
+            return [200, ['success' => true, 'data' => ['transaction_id' => 'FAKEREFUND', 'refund_id' => 'FAKEREFUND']]];
+        }
+
         preg_match('#^/orders/([^/]+)(/cancel)?$#', $path, $m);
         $orderId = rawurldecode($m[1] ?? '');
         $order = Cache::get("pos_fake:{$orderId}");

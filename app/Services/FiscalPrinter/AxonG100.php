@@ -49,6 +49,21 @@ class AxonG100
         return $commands;
     }
 
+    /**
+     * Annullo di uno scontrino emesso da questa stampante (comando [+] tipo 1): data di emissione,
+     * numero di chiusura e numero del documento originale. La stampante emette da sola l'intero
+     * documento commerciale di annullo prendendo le righe dal giornale elettronico.
+     */
+    public static function voidReceipt(Sale $sale): array
+    {
+        if (! preg_match('/^(\d{1,4})-(\d{1,4})$/', (string) $sale->receipt_number, $m) || ! $sale->closed_at) {
+            throw new \InvalidArgumentException("Numero scontrino «{$sale->receipt_number}» non riconosciuto: annulla lo scontrino dal menu della stampante.");
+        }
+
+        // +/1/GGMMAAAA/azzeramento/numero/lotteria/matricola/altri/
+        return [self::packet(['+', '1', $sale->closed_at->format('dmY'), (string) (int) $m[1], (string) (int) $m[2], '', '', ''])];
+    }
+
     /** Chiusura giornaliera (report Z): chiude la giornata e avvia l'invio dei corrispettivi. */
     public static function zReport(): array
     {

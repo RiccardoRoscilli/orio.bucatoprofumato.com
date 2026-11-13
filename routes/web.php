@@ -29,6 +29,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/vendite/bozza', [SaleController::class, 'saveDraft'])->name('sales.draft');
     Route::get('/vendite/{sale}', [SaleController::class, 'show'])->name('sales.show');
     Route::post('/vendite/{sale}/annulla', [SaleController::class, 'cancel'])->name('sales.cancel');
+    Route::post('/vendite/{sale}/storno', [\App\Http\Controllers\SaleVoidController::class, 'start'])->name('sales.void');
+    Route::post('/vendite/{sale}/storno/conferma', [\App\Http\Controllers\SaleVoidController::class, 'confirm'])->name('sales.void.confirm');
 
     Route::post('/vendite/{sale}/pagamento', [PaymentController::class, 'start'])->name('payments.start');
     Route::get('/vendite/{sale}/pagamento', [PaymentController::class, 'poll'])->name('payments.poll');

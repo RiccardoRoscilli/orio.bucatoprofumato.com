@@ -66,6 +66,16 @@ abstract class CloudPos
         return strtolower((string) ($data['status'] ?? ''));
     }
 
+    /** Rimborso (totale) sulla carta usata: non serve ripassarla sul terminale. */
+    public function refund(string $orderId, int $amountCents, ?int $saleId = null): void
+    {
+        $this->call('POST', '/orders/' . rawurlencode($orderId) . '/refunds', [
+            'currency' => 'EUR',
+            'amount' => $amountCents,
+            'description' => 'Annullo Orio vendita #' . $saleId,
+        ], $saleId, $orderId, 'refund');
+    }
+
     private function call(string $method, string $path, array $body, ?int $saleId, string $orderId, string $action, bool $log = true): array
     {
         try {

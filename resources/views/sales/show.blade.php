@@ -74,6 +74,15 @@
                 @if ($sale->fattura24_doc_number)
                     <div class="flex justify-between"><span class="text-stone-500">Fattura</span><span class="font-semibold">{{ $sale->fattura24_doc_number }}</span></div>
                 @endif
+                @if ($sale->void_receipt_number)
+                    <div class="flex justify-between"><span class="text-stone-500">Annullo scontrino</span><span class="font-semibold">{{ $sale->void_receipt_number }}</span></div>
+                @endif
+                @if ($sale->refunded_at)
+                    <div class="flex justify-between"><span class="text-stone-500">Rimborsato sulla carta</span><span>{{ $sale->refunded_at->format('d/m/Y H:i') }}</span></div>
+                @endif
+                @if ($sale->voided_by && $sale->voidedBy)
+                    <div class="flex justify-between"><span class="text-stone-500">Annullata da</span><span>{{ $sale->voidedBy->name }}</span></div>
+                @endif
                 @if ($sale->notes)
                     <p class="rounded-lg bg-amber-50 p-2 text-amber-800">{{ $sale->notes }}</p>
                 @endif
@@ -87,6 +96,7 @@
                 </div>
             @endif
 
+            @if (in_array($sale->status, ['bozza', 'pagata', 'scontrinata', 'fatturata'], true))
             <div class="card space-y-2 p-4" x-data="{ busy: false, msg: null, async emit(url) { this.busy = true; this.msg = null; try { const { data } = await axios.post(url); this.msg = data.message ?? null; if (data.success !== false) location.reload(); } catch (e) { this.msg = e.response?.data?.message ?? 'Errore'; } this.busy = false; } }">
                 @if ($sale->status === 'scontrinata')
                     <a href="{{ route('sales.receipt', $sale) }}" target="_blank" class="btn-light w-full">Anteprima scontrino</a>
@@ -101,7 +111,35 @@
                         <button class="btn-primary w-full" :disabled="busy" @click="busy = true; msg = null; emitReceipt({{ $sale->id }}).then(() => location.reload()).catch((e) => { msg = e.response?.data?.message ?? e.message; busy = false; })">Emetti scontrino</button>
                     @endif
                 @endif
-                @if (in_array($sale->status, ['bozza', 'pagata'], true))
+                @if (\App\Services\SaleVoidService::canVoid($sale))
+                    @php
+                        $cardRefund = $sale->payment_method === 'pos' && $sale->pos_transaction_id && ! $sale->refunded_at;
+                        $voidLabel = match (true) {
+                            (bool) $sale->receipt_voided_at => 'Riprova il rimborso sulla carta',
+                            $sale->status === 'scontrinata' && $cardRefund => 'Annulla scontrino e rimborsa la carta',
+                            $sale->status === 'scontrinata' => 'Annulla scontrino',
+                            $cardRefund => 'Annulla e rimborsa la carta',
+                            default => 'Annulla vendita',
+                        };
+                        $voidItems = array_values(array_filter([
+                            $sale->status === 'scontrinata' && ! $sale->receipt_voided_at ? ['label' => 'Annullo dello scontrino', 'value' => $sale->receipt_number] : null,
+                            $cardRefund ? ['label' => 'Rimborso sulla carta', 'value' => euro($sale->paid_cents)] : null,
+                            ! $cardRefund && $sale->payment_method === 'pos' ? ['label' => 'Da rimborsare a mano dal POS', 'value' => euro($sale->paid_cents)] : null,
+                            $sale->payment_method === 'contanti' ? ['label' => 'Contanti da restituire', 'value' => euro($sale->paid_cents)] : null,
+                            ['label' => 'Magazzino', 'value' => 'la merce rientra'],
+                        ]));
+                    @endphp
+                    @if ($sale->receipt_voided_at)
+                        <p class="rounded-lg bg-red-50 p-2 text-sm text-red-700">Scontrino annullato ({{ $sale->void_receipt_number }}), ma il rimborso sulla carta non è ancora riuscito.</p>
+                    @endif
+                    <button class="btn-light w-full text-red-700" :disabled="busy"
+                            @click="if (!await askConfirm({ title: @js($voidLabel . '?'), items: @js($voidItems), warning: 'Non si può tornare indietro.', confirmLabel: @js($voidLabel), danger: true })) return;
+                                    busy = true; msg = null;
+                                    voidSale({{ $sale->id }})
+                                        .then((r) => { if (r.state === 'done') { location.reload(); } else { msg = r.message; busy = false; } })
+                                        .catch((e) => { msg = e.response?.data?.message ?? e.message; busy = false; })">{{ $voidLabel }}</button>
+                @endif
+                @if ($sale->status === 'bozza')
                     <form method="POST" action="{{ route('sales.cancel', $sale) }}" data-confirm="Annullare la vendita?" data-confirm-label="Annulla vendita" data-confirm-danger>
                         @csrf
                         <button class="btn-light w-full text-red-700">Annulla vendita</button>
@@ -109,6 +147,7 @@
                 @endif
                 <p x-show="msg" x-text="msg" class="text-sm text-amber-700"></p>
             </div>
+            @endif
         </aside>
     </div>
 </x-layout>

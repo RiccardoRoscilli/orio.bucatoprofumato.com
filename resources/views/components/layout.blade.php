@@ -19,7 +19,7 @@
                     if (auth()->user()->can('admin')) {
                         $nav['users.index'] = 'Utenti';
                         $nav['fiscal-printer'] = 'Stampante';
-                        $nav['openapi-calls'] = 'OpenAPI';
+                        // OpenAPI: niente voce di menu, i dati (openapi_calls) servono solo per la rifatturazione
                     }
                 @endphp
                 @foreach ($nav as $route => $label)

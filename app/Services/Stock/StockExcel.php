@@ -13,14 +13,15 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 /**
  * Magazzino da file Excel (come il riallineamento di emmycasa): si scarica il modello con i
- * prodotti in vendita in negozio, si compila la colonna "Quantità" e lo si ricarica.
- *  - carico: la quantità si SOMMA alla giacenza (merce arrivata);
- *  - inventario: la quantità è il conteggio fisico e SOSTITUISCE la giacenza (solo admin).
- * Le righe con la quantità vuota vengono ignorate, quindi si compilano solo i prodotti toccati.
+ * prodotti in vendita in negozio, si scrive nell'unica colonna "Quantità" quanti pezzi ci sono
+ * in negozio e lo si ricarica. È un azzeramento completo: per ogni prodotto del file la giacenza
+ * diventa la quantità scritta (cella vuota = 0); la differenza resta come movimento di rettifica.
+ * I prodotti che non compaiono nel file restano come sono.
  */
 class StockExcel
 {
-    public const HEADERS = ['ID Orio', 'SKU', 'EAN', 'Prodotto', 'Formato', 'Giacenza attuale', 'Quantità'];
+    // Una sola colonna di quantità, per non confondere giacenza attuale e pezzi contati
+    public const HEADERS = ['ID Orio', 'SKU', 'EAN', 'Prodotto', 'Formato', 'Quantità'];
 
     public function __construct(private StockService $stock)
     {
@@ -32,53 +33,54 @@ class StockExcel
         $sheet = $book->getActiveSheet()->setTitle('Magazzino');
         $sheet->fromArray(self::HEADERS);
 
-        $products = Product::sellable()->orderBy('name')->get(['id', 'sku', 'ean', 'name', 'format', 'stock_qty']);
+        $products = Product::sellable()->orderBy('name')->get(['id', 'sku', 'ean', 'name', 'format']);
         $row = 2;
         foreach ($products as $p) {
-            $sheet->fromArray([$p->id, $p->sku, null, trim($p->name), $p->format, (float) $p->stock_qty, null], null, "A{$row}", true);
+            // Quantità a 0: è il valore che il prodotto avrà se non viene cambiata
+            $sheet->fromArray([$p->id, $p->sku, null, trim($p->name), $p->format, 0], null, "A{$row}", true);
             // EAN come testo, altrimenti Excel lo mostra in notazione scientifica
             $sheet->setCellValueExplicit("C{$row}", (string) $p->ean, DataType::TYPE_STRING);
             $row++;
         }
         $last = max(2, $row - 1);
 
-        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
-        $sheet->getStyle("G1:G{$last}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF4CC');
+        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
+        $sheet->getStyle("F1:F{$last}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF4CC');
         $sheet->freezePane('A2');
-        $sheet->setAutoFilter("A1:G{$last}");
-        foreach (['A' => 9, 'B' => 16, 'C' => 16, 'D' => 55, 'E' => 12, 'F' => 16, 'G' => 12] as $col => $width) {
+        $sheet->setAutoFilter("A1:F{$last}");
+        foreach (['A' => 9, 'B' => 16, 'C' => 16, 'D' => 55, 'E' => 12, 'F' => 12] as $col => $width) {
             $sheet->getColumnDimension($col)->setWidth($width);
         }
 
-        $validation = $sheet->getCell('G2')->getDataValidation();
+        $validation = $sheet->getCell('F2')->getDataValidation();
         $validation->setType(DataValidation::TYPE_DECIMAL)->setOperator(DataValidation::OPERATOR_GREATERTHANOREQUAL)
             ->setFormula1('0')->setAllowBlank(true)->setShowErrorMessage(true)
-            ->setErrorTitle('Quantità')->setError('Scrivi un numero (0 o più), oppure lascia vuoto.');
-        $sheet->setDataValidation("G2:G{$last}", $validation);
+            ->setErrorTitle('Quantità')->setError('Scrivi quanti pezzi ci sono in negozio (0 o più).');
+        $sheet->setDataValidation("F2:F{$last}", $validation);
 
         return $book;
     }
 
     /**
-     * @return array{changed:int, unchanged:int, pieces:float, skipped:int, problems:list<string>}
+     * @return array{changed:int, unchanged:int, rows:int, problems:list<string>}
      */
-    public function import(UploadedFile $file, string $mode, ?int $userId, ?string $note): array
+    public function import(UploadedFile $file, ?int $userId, ?string $note): array
     {
         $rows = IOFactory::load($file->getRealPath())->getActiveSheet()->toArray(null, true, false, false);
         $columns = $this->columns(array_shift($rows) ?? []);
 
-        $result = ['changed' => 0, 'unchanged' => 0, 'pieces' => 0.0, 'skipped' => 0, 'problems' => []];
+        $result = ['changed' => 0, 'unchanged' => 0, 'rows' => 0, 'problems' => []];
         $todo = [];
 
         foreach ($rows as $index => $row) {
             $line = $index + 2;
-            $raw = trim((string) ($row[$columns['qty']] ?? ''));
-            if ($raw === '') {
-                $result['skipped']++;
+            // Riga completamente vuota (es. in fondo al foglio): non è un prodotto
+            if (! array_filter($row, fn ($v) => trim((string) $v) !== '')) {
                 continue;
             }
 
-            $qty = str_replace(',', '.', $raw);
+            $raw = trim((string) ($row[$columns['qty']] ?? ''));
+            $qty = $raw === '' ? '0' : str_replace(',', '.', $raw);
             if (! is_numeric($qty) || (float) $qty < 0 || (float) $qty > 99999) {
                 $result['problems'][] = "riga {$line}: quantità non valida «{$raw}»";
                 continue;
@@ -90,23 +92,14 @@ class StockExcel
                 continue;
             }
 
-            $todo[] = [$product, round((float) $qty, 3)];
+            $todo[$product->id] = [$product, round((float) $qty, 3)];
         }
+        $result['rows'] = count($todo);
 
-        DB::transaction(function () use ($todo, $mode, $userId, $note, &$result) {
+        DB::transaction(function () use ($todo, $userId, $note, &$result) {
             foreach ($todo as [$product, $qty]) {
-                if ($mode === 'carico') {
-                    if ($qty == 0) {
-                        $result['unchanged']++;
-                        continue;
-                    }
-                    $this->stock->load($product, $qty, $userId, $note);
-                    $result['changed']++;
-                    $result['pieces'] += $qty;
-                } else {
-                    $movement = $this->stock->adjust($product, $qty, $userId, $note);
-                    $movement ? $result['changed']++ : $result['unchanged']++;
-                }
+                $movement = $this->stock->adjust($product, $qty, $userId, $note);
+                $movement ? $result['changed']++ : $result['unchanged']++;
             }
         });
 
@@ -130,7 +123,7 @@ class StockExcel
             'id' => $find(['id orio', 'id'], null),
             'sku' => $find(['sku', 'codice'], null),
             'ean' => $find(['ean', 'barcode', 'codice a barre'], null),
-            'qty' => $find(['quantità', 'quantita', 'qta', 'q.tà', 'pezzi'], 6),
+            'qty' => $find(['quantità', 'quantita', 'qta', 'q.tà', 'pezzi'], 5),
         ];
     }
 

@@ -8,7 +8,6 @@ use App\Services\Stock\StockExcel;
 use App\Services\Stock\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -92,33 +91,29 @@ class StockController extends Controller
         ]);
     }
 
-    /** Carico (somma) o inventario (sostituisce, solo admin) dal modello Excel compilato. */
+    /**
+     * Giacenze da Excel: azzeramento completo. Ogni prodotto del file prende la quantita' scritta
+     * (cella vuota = 0), la differenza resta come rettifica nei movimenti.
+     */
     public function excelImport(Request $request, StockExcel $excel)
     {
         $data = $request->validate([
-            'mode' => 'required|in:carico,inventario',
+            'mode' => 'nullable|in:carico,inventario', // solo per tornare alla pagina di partenza
             'file' => 'required|file|mimes:xlsx,xls,csv,txt,ods|max:10240',
             'note' => 'nullable|string|max:255',
         ], ['file.mimes' => 'Carica il file Excel (.xlsx).']);
 
-        if ($data['mode'] === 'inventario') {
-            Gate::authorize('admin');
-        }
-
         // Copia del file caricato, per poter ricontrollare cosa e' stato importato
         $file = $request->file('file');
-        $file->storeAs('magazzino', now()->format('Y-m-d_His') . '_' . $data['mode'] . '_'
+        $file->storeAs('magazzino', now()->format('Y-m-d_His') . '_giacenze_'
             . Str::slug($request->user()->name) . '.' . strtolower($file->getClientOriginalExtension()), 'local');
 
-        $note = trim(($data['mode'] === 'carico' ? 'Carico da Excel' : 'Inventario da Excel') . ' ' . ($data['note'] ?? ''));
-        $r = $excel->import($file, $data['mode'], $request->user()->id, $note);
+        $note = trim('Giacenze da Excel ' . ($data['note'] ?? ''));
+        $r = $excel->import($file, $request->user()->id, $note);
 
-        $message = $data['mode'] === 'carico'
-            ? "Carico da Excel registrato: {$r['changed']} prodotti, " . $this->qty($r['pieces']) . ' pezzi.'
-            : "Inventario da Excel: {$r['changed']} giacenze corrette, {$r['unchanged']} già giuste.";
-        $message .= " Righe senza quantità ignorate: {$r['skipped']}.";
+        $message = "Giacenze aggiornate da Excel: {$r['rows']} prodotti nel file, {$r['changed']} giacenze cambiate, {$r['unchanged']} già giuste.";
 
-        $redirect = redirect()->route($data['mode'] === 'carico' ? 'stock.index' : 'stock.inventory')->with('status', $message);
+        $redirect = redirect()->route(($data['mode'] ?? null) === 'inventario' ? 'stock.inventory' : 'stock.index')->with('status', $message);
         if ($r['problems']) {
             $redirect->with('error', 'Righe non importate (' . count($r['problems']) . '): ' . implode('; ', array_slice($r['problems'], 0, 15))
                 . (count($r['problems']) > 15 ? '…' : ''));

@@ -98,22 +98,21 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('stock.excel.import') }}" enctype="multipart/form-data" class="card space-y-3 p-5">
+            <form method="POST" action="{{ route('stock.excel.import') }}" enctype="multipart/form-data" class="card space-y-3 p-5"
+                  data-confirm="Sostituire le giacenze con quelle del file?" data-confirm-label="Sostituisci giacenze" data-confirm-danger>
                 @csrf
                 <input type="hidden" name="mode" value="{{ $mode }}">
-                <h2 class="font-bold">{{ $mode === 'carico' ? 'Carico da Excel' : 'Inventario da Excel' }}</h2>
+                <h2 class="font-bold">Giacenze da Excel</h2>
                 <p class="text-xs text-stone-500">
-                    @if ($mode === 'carico')
-                        Scarica il modello, scrivi nella colonna «Quantità» i pezzi arrivati e ricaricalo: si <strong>sommano</strong> alla giacenza. Le righe vuote vengono ignorate.
-                    @else
-                        Scarica il modello, scrivi nella colonna «Quantità» i pezzi contati e ricaricalo: <strong>sostituiscono</strong> la giacenza. Le righe vuote restano come sono.
-                    @endif
+                    Scarica il modello, scrivi nella colonna «Quantità» i pezzi presenti in negozio e ricaricalo:
+                    <strong>le giacenze vengono sostituite</strong> da quelle del file, non sommate. È un azzeramento completo del magazzino:
+                    una quantità lasciata a 0 o vuota porta la giacenza a 0. I prodotti tolti dal file restano come sono.
                 </p>
                 <a href="{{ route('stock.excel') }}" class="btn-light w-full py-2 text-center">Scarica modello Excel</a>
                 <input type="file" name="file" accept=".xlsx,.xls,.ods,.csv" required class="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-stone-100 file:px-3 file:py-2 file:font-semibold">
-                <input name="note" class="input" placeholder="{{ $mode === 'carico' ? 'Nota, es. DDT 123 del 10/11' : 'Nota, es. inventario di novembre' }}">
+                <input name="note" class="input" placeholder="Nota, es. inventario di novembre">
                 @error('file')<p class="text-sm text-red-700">{{ $message }}</p>@enderror
-                <button class="btn-primary w-full py-3">{{ $mode === 'carico' ? 'Carica merce dal file' : 'Aggiorna giacenze dal file' }}</button>
+                <button class="btn-primary w-full py-3">Sostituisci le giacenze dal file</button>
             </form>
 
             <div class="card p-5">

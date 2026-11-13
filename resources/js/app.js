@@ -1,6 +1,7 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
 import cassa from './cassa';
+import supportRequest from './support';
 import customerModal from './customer-modal';
 import closure from './closure';
 import stockEntry from './stock';
@@ -16,6 +17,7 @@ window.axonPrinter = axonPrinter;
 window.askConfirm = askConfirm;
 registerConfirm();
 Alpine.data('cassa', cassa);
+Alpine.data('supportRequest', supportRequest);
 Alpine.data('customerModal', customerModal);
 Alpine.data('closure', closure);
 Alpine.data('stockEntry', stockEntry);

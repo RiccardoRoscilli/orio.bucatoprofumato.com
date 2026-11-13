@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+
+    // Segnalazioni "Segnala un problema" verso il task manager (stesso endpoint di ERP ed emmycasa)
+    'task_manager' => [
+        'url' => env('TASK_MANAGER_URL', 'https://taskman.modulioscommerce.com'),
+        'api_key' => env('TASK_MANAGER_API_KEY', 'teaerp_task_2024_secure_key'),
+        'default_developer_id' => env('TASK_MANAGER_DEFAULT_DEVELOPER_ID', 6),
+    ],
+
 ];

@@ -33,6 +33,7 @@
                     @if (config('orio.fiscal_printer.driver') === 'fake')
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">Stampante simulata</span>
                     @endif
+                    <x-support-button />
                     <span class="hidden text-stone-500 sm:inline">{{ auth()->user()->name }}</span>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf

@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/', [SaleController::class, 'cassa'])->name('cassa');
 
+    Route::post('/assistenza', [\App\Http\Controllers\SupportRequestController::class, 'store'])->name('support.request');
     Route::get('/vendite', [SaleController::class, 'index'])->name('sales.index');
     Route::post('/vendite', [SaleController::class, 'store'])->name('sales.store');
     Route::put('/vendite/bozza', [SaleController::class, 'saveDraft'])->name('sales.draft');

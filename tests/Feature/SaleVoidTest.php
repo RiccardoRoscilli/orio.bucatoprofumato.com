@@ -100,10 +100,10 @@ class SaleVoidTest extends TestCase
         config(['orio.fiscal_printer.driver' => 'axon', 'orio.fiscal_printer.host' => '192.168.1.50']);
         $sale = $this->receiptPaidByCard();
         $this->postJson("/vendite/{$sale->id}/scontrino/conferma", ['receipt_number' => '0316-0042'])->assertOk();
-        $sale->forceFill(['closed_at' => '2026-11-13 10:00:00'])->save();
+        $sale->forceFill(['closed_at' => now()->setTime(10, 0)])->save();
 
         $this->postJson("/vendite/{$sale->id}/storno")->assertOk()
-            ->assertJson(['state' => 'printer', 'commands' => ['+/1/13112026/316/42////']]);
+            ->assertJson(['state' => 'printer', 'commands' => ['+/1/' . now()->format('dmY') . '/316/42////']]);
         $this->assertNull($sale->fresh()->receipt_voided_at);
 
         $this->postJson("/vendite/{$sale->id}/storno/conferma", ['void_number' => '0316-0043'])->assertOk()->assertJson(['state' => 'done']);

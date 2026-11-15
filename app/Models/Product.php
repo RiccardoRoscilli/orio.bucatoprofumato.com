@@ -10,10 +10,12 @@ class Product extends Model
 {
     protected $fillable = [
         'sku', 'ean', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
-        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'in_stock', 'synced_at',
+        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'stock_min', 'reorder_qty', 'in_stock', 'synced_at',
     ];
 
     protected $casts = [
+        'stock_min' => 'float',
+        'reorder_qty' => 'float',
         'shop_only' => 'boolean',
         'site_price_cents' => 'integer',
         'price_cents' => 'integer',
@@ -81,5 +83,21 @@ class Product extends Model
             'vat_rate' => $this->vat_rate,
             'stock' => $this->stock_qty,
         ];
+    }
+
+    /** Sotto scorta: c'e' una scorta minima e la giacenza e' scesa sotto. */
+    public function scopeBelowMinimum($query)
+    {
+        return $query->whereNotNull('stock_min')->whereColumn('stock_qty', '<', 'stock_min');
+    }
+
+    /** Quantita' da ordinare a TEA: quella di riordino, altrimenti quanto manca alla scorta minima. */
+    public function suggestedReorderQty(): int
+    {
+        if ($this->reorder_qty > 0) {
+            return (int) ceil($this->reorder_qty);
+        }
+
+        return max(1, (int) ceil(($this->stock_min ?? 0) - $this->stock_qty));
     }
 }

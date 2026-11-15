@@ -42,6 +42,20 @@
                 @endif
             </div>
 
+            @can('admin')
+                <form method="POST" action="{{ route('products.minimum', $product) }}" class="mt-4 flex flex-wrap items-end gap-3 rounded-xl bg-stone-50 p-3 text-sm">
+                    @csrf @method('PATCH')
+                    <label class="block">Scorta minima
+                        <input name="stock_min" type="number" min="0" step="1" value="{{ $product->stock_min !== null ? (float) $product->stock_min : '' }}" class="input mt-1 w-28 py-1.5">
+                    </label>
+                    <label class="block">Quantità riordino
+                        <input name="reorder_qty" type="number" min="0" step="1" value="{{ $product->reorder_qty !== null ? (float) $product->reorder_qty : '' }}" class="input mt-1 w-28 py-1.5">
+                    </label>
+                    <button class="btn-light py-2">Salva</button>
+                    <span class="text-xs text-stone-500">Sotto la scorta minima il prodotto viene proposto nell'ordine a TEA.</span>
+                </form>
+            @endcan
+
             @if ($product->short_description)
                 <div class="product-text mt-5">{!! $product->short_description !!}</div>
             @endif

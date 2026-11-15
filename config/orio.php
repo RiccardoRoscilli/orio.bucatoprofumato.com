@@ -1,6 +1,23 @@
 <?php
 
 return [
+    // Ordini di riassortimento del negozio verso TEA: API di teaerp (utente api_client dedicato a Orio)
+    'tea' => [
+        'url' => env('TEA_ORDERS_URL'), // es. https://<dominio teaerp>
+        'user' => env('TEA_ORDERS_USER'),
+        'password' => env('TEA_ORDERS_PASSWORD'),
+        'timeout' => 30,
+        // Consegna: ritiro in sede, all'indirizzo del negozio (va sull'ordine TEA; la fattura resta alla sede)
+        'shipping' => [
+            'company' => env('TEA_SHIP_COMPANY', 'LE ESSENZE DI ELDA SRL - Negozio Orio Center'),
+            'street' => env('TEA_SHIP_STREET', 'Via Portico 71'),
+            'city' => env('TEA_SHIP_CITY', 'Orio al Serio'),
+            'postcode' => env('TEA_SHIP_POSTCODE', '24050'),
+            'region' => env('TEA_SHIP_REGION', 'BG'),
+            'country' => 'IT',
+        ],
+    ],
+
     'pos' => [
         // manual = l'operatore digita l'importo sul POS e conferma in Orio (nessun collegamento)
         // multisafepay = SmartPOS in cloud mode: Orio manda l'importo al terminale e legge l'esito

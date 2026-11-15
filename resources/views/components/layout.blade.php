@@ -17,6 +17,7 @@
                 @php
                     $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
                     if (auth()->user()->can('admin')) {
+                        $nav['tea-orders.index'] = 'Ordini TEA';
                         $nav['users.index'] = 'Utenti';
                         $nav['fiscal-printer'] = 'Stampante';
                         // OpenAPI: niente voce di menu, i dati (openapi_calls) servono solo per la rifatturazione

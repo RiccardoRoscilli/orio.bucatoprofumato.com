@@ -26,20 +26,50 @@ const ERRORS = {
 
 export class AxonError extends Error {}
 
+// Indirizzi delle reti locali (192.168.x, 10.x, 172.16-31.x, 169.254.x): solo per questi
+// Chrome accetta targetAddressSpace "local"; con un IP fuori da questi intervalli lo rifiuta.
+const isPrivateIp = (host) => /^(10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|127\.)/.test(host);
+
 async function call(url) {
+    const host = new URL(url).hostname;
+    const options = { cache: 'no-store' };
+    // targetAddressSpace: con Orio in https, Chrome chiede il permesso "dispositivi della
+    // rete locale" e poi consente la chiamata in http all'IP della stampante.
+    if (isPrivateIp(host)) options.targetAddressSpace = 'local';
+
     let res;
     try {
-        // targetAddressSpace: con Orio in https, Chrome chiede il permesso "dispositivi della
-        // rete locale" e poi consente la chiamata in http all'IP della stampante.
-        res = await fetch(url, { cache: 'no-store', targetAddressSpace: 'local' });
-    } catch {
-        throw new AxonError(
-            'il tablet non riesce a raggiungere la stampante fiscale. Controlla che sia accesa e in rete; ' +
-            'se Orio è in https, sul tablet va abilitato in Chrome l\'indirizzo della stampante (vedi Impostazioni > Stampante).'
-        );
+        res = await fetch(url, options);
+    } catch (e) {
+        throw new AxonError(await diagnose(url, host, e));
     }
     if (!res.ok) throw new AxonError(`la stampante ha risposto HTTP ${res.status}`);
     return res.text();
+}
+
+/** Spiega perché la chiamata non è passata: rete, IP fuori dalla rete locale, permessi di Chrome. */
+async function diagnose(url, host, error) {
+    const where = 'Gestione > Configurazione > Stampante fiscale';
+    if (!isPrivateIp(host)) {
+        return `l'indirizzo ${host} non è un indirizzo della rete del negozio (di solito inizia con 192.168.): ` +
+            `controlla l'IP in ${where}. Dettaglio: ${error.message}`;
+    }
+    // Chiamata "opaca": arriva alla stampante anche se il browser non ci lascia leggere la risposta
+    let reachable = false;
+    try {
+        await fetch(url.replace(/cmd=4.*$/, 'cmd=0'), { mode: 'no-cors', cache: 'no-store', targetAddressSpace: 'local' });
+        reachable = true;
+    } catch {
+        // davvero irraggiungibile, o bloccata dai permessi
+    }
+    if (reachable) {
+        return 'la stampante risponde, ma Chrome non lascia leggere la risposta a Orio. Nelle impostazioni del sito di Orio ' +
+            '(icona a sinistra dell\'indirizzo > Impostazioni sito) metti su Consenti "Accesso alla rete locale" e "Contenuti non sicuri", ' +
+            `poi ricarica la pagina. Dettaglio: ${error.message}`;
+    }
+    return 'il tablet non riesce a raggiungere la stampante fiscale. Controlla che sia accesa, sulla stessa rete del tablet ' +
+        `e che l'IP in ${where} sia giusto; se lo è, in Chrome consenti "Accesso alla rete locale" per il sito di Orio. ` +
+        `Dettaglio: ${error.message}`;
 }
 
 export async function status(base) {

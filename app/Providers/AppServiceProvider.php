@@ -21,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
             : new \App\Services\Pos\FakePos());
         $this->app->bind(VneClient::class, fn () => match (config('orio.vne.driver')) {
             'direct' => new DirectVneClient(),
+            'browser' => \App\Services\Vne\BrowserVneClient::fromRequest($this->app->bound('request') ? $this->app['request'] : null),
             default => new FakeVneClient(),
         });
     }

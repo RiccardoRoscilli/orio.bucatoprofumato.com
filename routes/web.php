@@ -89,6 +89,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/configurazione', [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings');
         Route::put('/configurazione', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
         Route::post('/configurazione/prova-pos', [\App\Http\Controllers\SettingsController::class, 'testPos'])->name('settings.test-pos');
+        Route::post('/configurazione/prova-vne', [\App\Http\Controllers\SettingsController::class, 'testVne'])->name('settings.test-vne');
         Route::post('/configurazione/prova-tea', [\App\Http\Controllers\SettingsController::class, 'testTea'])->name('settings.test-tea');
 
         Route::get('/openapi', [OpenApiCallController::class, 'index'])->name('openapi-calls');
@@ -98,6 +99,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/chiusura', [ClosureController::class, 'index'])->name('closure');
     Route::post('/chiusura/fiscale', [ClosureController::class, 'fiscal'])->name('closure.fiscal');
     Route::post('/chiusura/fiscale/conferma', [ClosureController::class, 'fiscalConfirm'])->name('closure.fiscal.confirm');
+    Route::post('/chiusura/stato-cassa', [ClosureController::class, 'vneStatus'])->name('closure.vne-status');
     Route::post('/chiusura/{closure}/vne', [ClosureController::class, 'vne'])->name('closure.vne');
 });
 

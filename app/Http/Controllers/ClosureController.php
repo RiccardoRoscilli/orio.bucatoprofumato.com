@@ -22,13 +22,9 @@ class ClosureController extends Controller
 {
     public function index(VneClient $vne, ClosureStatus $closureStatus)
     {
-        try {
-            $status = $vne->status();
-            $vneError = null;
-        } catch (VneException $e) {
-            $status = null;
-            $vneError = $e->getMessage();
-        }
+        // Cassa collegata dal tablet: lo stato lo carica la pagina (vneStatus), qui non si raggiunge
+        $vneDeferred = config('orio.vne.driver') === 'browser';
+        [$status, $vneError] = $vneDeferred ? [null, null] : $this->readVneStatus($vne);
 
         $from = $this->periodFrom();
 
@@ -37,6 +33,7 @@ class ClosureController extends Controller
             'totals' => $this->totals($from, now()),
             'status' => $status,
             'vneError' => $vneError,
+            'vneDeferred' => $vneDeferred,
             'fiscalClosedToday' => $closureStatus->fiscalClosedToday(),
             'overdueDay' => $closureStatus->overdueDay(),
             'pendingVne' => CashClosure::whereNotNull('fiscal_closed_at')->whereNull('vne_closed_at')->latest()->first(),
@@ -77,6 +74,24 @@ class ClosureController extends Controller
     }
 
     /** Passo 2: chiusura della cassa automatica VNE; si puo' ripetere se la macchina non risponde. */
+    /** Riquadro dello stato della cassa automatica, chiesto dal tablet (collegamento dal tablet). */
+    public function vneStatus(VneClient $vne)
+    {
+        [$status, $vneError] = $this->readVneStatus($vne);
+
+        return view('closure-vne-status', ['status' => $status, 'vneError' => $vneError]);
+    }
+
+    /** @return array{0:?array, 1:?string} stato e messaggio d'errore */
+    private function readVneStatus(VneClient $vne): array
+    {
+        try {
+            return [$vne->status(), null];
+        } catch (VneException $e) {
+            return [null, $e->getMessage()];
+        }
+    }
+
     public function vne(CashClosure $closure, VneClient $vne)
     {
         abort_if($closure->vne_closed_at, 422, 'La cassa automatica è già stata chiusa per questa giornata.');

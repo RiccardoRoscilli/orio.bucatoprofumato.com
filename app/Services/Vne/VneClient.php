@@ -6,7 +6,7 @@ use App\Models\VneTransaction;
 
 /**
  * Comandi del protocollo VNE Automatic Cash 3.05 usati da orio. Le implementazioni
- * cambiano solo il trasporto (send): simulato, diretto dal server o, in produzione, via ponte.
+ * cambiano solo il trasporto (send): simulato, diretto dal server o dal browser del tablet.
  */
 abstract class VneClient
 {
@@ -94,7 +94,7 @@ abstract class VneClient
     {
         try {
             $response = $this->send($payload);
-        } catch (VneException $e) {
+        } catch (VneException|VneRelayRequired $e) {
             throw $e;
         } catch (\Throwable $e) {
             $this->log($payload, null, $saleId, $e->getMessage());

@@ -19,7 +19,7 @@ class SettingsController extends Controller
 
     public const DRIVERS = [
         'fiscal_printer' => ['fake' => 'Simulata (non stampa)', 'axon' => 'Axon DADO RT (WyCash 600)', 'epson' => 'Epson FPMate'],
-        'vne' => ['fake' => 'Simulato (prova)', 'direct' => 'Collegato'],
+        'vne' => ['fake' => 'Simulato (prova)', 'browser' => 'Collegato dal tablet di cassa', 'direct' => 'Collegato dal server (solo con Orio installato in negozio)'],
         'pos' => ['manual' => 'Non collegato: importo digitato sul POS', 'multisafepay' => 'Collegato: MultiSafepay (SmartPOS / Tap to Pay)', 'fake' => 'Simulato (prova)'],
     ];
 
@@ -60,7 +60,7 @@ class SettingsController extends Controller
             'fiscal_printer.payment_card' => 'required|integer|min:1|max:99',
 
             'vne.driver' => ['required', Rule::in(array_keys(self::DRIVERS['vne']))],
-            'vne.host' => ['nullable', 'required_if:vne.driver,direct', self::HOST],
+            'vne.host' => ['nullable', 'required_unless:vne.driver,fake', self::HOST],
             'vne.op_name' => 'nullable|string|max:30',
 
             'pos.driver' => ['required', Rule::in(array_keys(self::DRIVERS['pos']))],
@@ -165,6 +165,20 @@ class SettingsController extends Controller
         }
 
         return response()->json($pos->forTerminal($id)->ping());
+    }
+
+    /** Stato della cassa automatica (tipo 20): col collegamento dal tablet lo chiede il browser. */
+    public function testVne(\App\Services\Vne\VneClient $vne)
+    {
+        try {
+            $status = $vne->status();
+        } catch (\App\Services\Vne\VneException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()]);
+        }
+        $notes = (int) ($status['recycler']['totalInRecycle'] ?? 0);
+        $coins = (int) ($status['hopper']['totalInRecycle'] ?? 0);
+
+        return response()->json(['ok' => true, 'message' => 'La cassa automatica risponde: ' . euro($notes) . ' in banconote e ' . euro($coins) . ' in monete disponibili per il resto.']);
     }
 
     public function testTea(TeaOrderClient $client)

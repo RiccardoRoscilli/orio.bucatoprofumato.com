@@ -94,7 +94,7 @@
             {{-- Cassetto contanti --}}
             <section id="cassetto" class="card scroll-mt-20 p-5" x-data="{ driver: @js($v('vne.driver')) }">
                 <h2 class="font-bold">Cassetto automatico contanti (VNE)</h2>
-                <p class="mb-4 text-sm text-stone-500">Il cassetto che accetta i contanti e dà il resto.</p>
+                <p class="mb-4 text-sm text-stone-500">Il cassetto che accetta i contanti e dà il resto. Con Orio su internet scegli "Collegato dal tablet": è il browser del tablet di cassa, sulla rete del negozio, a parlare con il cassetto.</p>
                 <div class="grid gap-3 sm:grid-cols-3">
                     <label class="block">
                         <span class="mb-1 block text-sm font-semibold">Collegamento</span>
@@ -106,13 +106,23 @@
                     </label>
                     <label class="block">
                         <span class="mb-1 block text-sm font-semibold">Indirizzo IP</span>
-                        <input name="vne[host]" value="{{ $v('vne.host') }}" class="input font-mono" placeholder="192.168.1.60" :required="driver === 'direct'">
+                        <input name="vne[host]" value="{{ $v('vne.host') }}" class="input font-mono" placeholder="192.168.1.60" :required="driver !== 'fake'">
                     </label>
                     <label class="block">
                         <span class="mb-1 block text-sm font-semibold">Nome operatore sul cassetto</span>
                         <input name="vne[op_name]" value="{{ $v('vne.op_name') }}" class="input" maxlength="30">
                     </label>
                 </div>
+                <div class="mt-3 flex flex-wrap items-center gap-3 text-sm" x-data="{ testing: false, result: null }">
+                    <button type="button" class="font-semibold text-brand-700" :disabled="testing"
+                            @click="testing = true; result = null; axios.post(@js(route('settings.test-vne'))).then(r => result = r.data).catch(e => result = { ok: false, message: e.response?.data?.message ?? e.message }).finally(() => testing = false)">
+                        Prova collegamento
+                    </button>
+                    <span class="text-stone-500" x-show="!result && !testing">legge lo stato del cassetto con i dati salvati, senza muovere denaro (col collegamento dal tablet va fatta dal tablet di cassa)</span>
+                    <span x-show="testing" class="text-stone-500">…</span>
+                    <span x-show="result" x-text="result?.message" :class="result?.ok ? 'text-emerald-700' : 'text-red-700'"></span>
+                </div>
+                <p class="mt-2 text-xs text-stone-500">La prima volta, sul tablet apri <span class="font-mono">https://IP-del-cassetto/selfcashapi/</span> e accetta il certificato del cassetto ("Avanzate" → "Procedi").</p>
             </section>
 
             {{-- Terminali carta --}}

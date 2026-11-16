@@ -16,19 +16,38 @@
                 </a>
                 @php
                     $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
-                    if (auth()->user()->can('admin')) {
-                        $nav['tea-orders.index'] = 'Ordini TEA';
-                        $nav['users.index'] = 'Utenti';
-                        // La prova della stampante si apre dalla sezione Stampante della Configurazione
-                        $nav['settings'] = 'Configurazione';
-                        // OpenAPI: niente voce di menu, i dati (openapi_calls) servono solo per la rifatturazione
-                    }
+                    // Voci dell'admin raccolte in un menu, per non allargare la barra.
+                    // La prova della stampante si apre dalla Configurazione; OpenAPI non ha voce (dati solo per la rifatturazione)
+                    $adminNav = auth()->user()->can('admin')
+                        ? ['tea-orders.index' => 'Ordini TEA', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
+                        : [];
+                    $isActive = fn ($route) => request()->routeIs(str_replace('.index', '.*', $route));
+                    $adminActive = collect(array_keys($adminNav))->contains($isActive) || request()->routeIs('fiscal-printer');
                 @endphp
-                @foreach ($nav as $route => $label)
-                    <a href="{{ route($route) }}"
-                       class="rounded-lg px-3 py-2 text-sm font-semibold {{ request()->routeIs(str_replace('.index', '.*', $route)) ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-100' }}">{{ $label }}</a>
-                @endforeach
-                <div class="ml-auto flex items-center gap-3 text-sm">
+                {{-- Su schermi stretti le voci scorrono di lato invece di allargare la pagina --}}
+                <nav class="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+                    @foreach ($nav as $route => $label)
+                        <a href="{{ route($route) }}"
+                           class="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold {{ $isActive($route) ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-100' }}">{{ $label }}</a>
+                    @endforeach
+                </nav>
+                @if ($adminNav)
+                    <div class="relative shrink-0" x-data="{ open: false }" @keydown.escape.window="open = false">
+                        <button type="button" @click="open = !open" :aria-expanded="open"
+                                class="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold {{ $adminActive ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-100' }}">
+                            Gestione
+                            <svg class="h-4 w-4 transition" :class="open && 'rotate-180'" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition.origin.top.left @click.outside="open = false"
+                             class="absolute left-0 top-full z-30 mt-1 w-48 rounded-xl bg-white p-1 shadow-xl ring-1 ring-stone-200">
+                            @foreach ($adminNav as $route => $label)
+                                <a href="{{ route($route) }}"
+                                   class="block rounded-lg px-3 py-2 text-sm font-semibold {{ $isActive($route) ? 'bg-brand-50 text-brand-700' : 'text-stone-700 hover:bg-stone-100' }}">{{ $label }}</a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+                <div class="ml-auto flex shrink-0 items-center gap-3 text-sm">
                     @if (config('orio.vne.driver') === 'fake')
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">VNE simulata</span>
                     @endif
@@ -36,7 +55,7 @@
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">Stampante simulata</span>
                     @endif
                     <x-support-button />
-                    <span class="hidden text-stone-500 sm:inline">{{ auth()->user()->name }}</span>
+                    <span class="hidden text-stone-500 lg:inline">{{ auth()->user()->name }}</span>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button class="rounded-lg px-3 py-2 font-semibold text-stone-600 hover:bg-stone-100">Esci</button>

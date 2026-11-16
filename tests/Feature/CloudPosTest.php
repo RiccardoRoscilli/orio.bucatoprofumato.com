@@ -142,4 +142,40 @@ class CloudPosTest extends TestCase
         $this->travel(7)->seconds();
         $this->getJson("/vendite/{$sale->id}/pagamento")->assertJson(['state' => 'declined']);
     }
+
+    public function test_operator_chooses_the_terminal_and_each_uses_its_group_key(): void
+    {
+        // SmartPOS con la chiave generale, telefono Tap to Pay con la chiave del suo gruppo
+        config(['orio.pos.terminals' => 'SmartPOS|000000MB, Telefono Tap to Pay|000001AB|phone-key']);
+        $this->fakeMultiSafepay(['completed']);
+        $sale = $this->draft();
+
+        $this->get('/')->assertOk()->assertSee('Telefono Tap to Pay')->assertDontSee('phone-key');
+
+        $this->postJson("/vendite/{$sale->id}/pagamento", ['method' => 'pos', 'terminal' => 'NONESISTE'])->assertStatus(422);
+        $this->postJson("/vendite/{$sale->id}/pagamento", ['method' => 'pos', 'terminal' => '000001AB'])->assertOk()
+            ->assertJson(['state' => 'pending', 'terminal' => '000001AB']);
+        $sale->refresh();
+        $this->assertSame('000001AB', $sale->pos_terminal_id);
+        Http::assertSent(fn (Request $r) => $r->method() === 'POST'
+            && str_contains($r->url(), '/orders?api_key=phone-key')
+            && $r['gateway_info']['terminal_id'] === '000001AB');
+
+        // L'esito si legge con la chiave dello stesso terminale
+        $this->getJson("/vendite/{$sale->id}/pagamento")->assertJson(['state' => 'completed']);
+        Http::assertSent(fn (Request $r) => $r->method() === 'GET' && str_contains($r->url(), 'api_key=phone-key'));
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'api_key=group-key'));
+        $this->assertDatabaseHas('pos_transactions', ['sale_id' => $sale->id, 'action' => 'start', 'terminal_id' => '000001AB']);
+    }
+
+    public function test_without_choice_the_first_terminal_is_used(): void
+    {
+        config(['orio.pos.terminals' => 'SmartPOS|000000MB, Telefono|000001AB|phone-key']);
+        $this->fakeMultiSafepay([]);
+        $sale = $this->draft();
+
+        $this->postJson("/vendite/{$sale->id}/pagamento", ['method' => 'pos'])->assertOk();
+        $this->assertSame('000000MB', $sale->fresh()->pos_terminal_id);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), 'api_key=group-key') && $r['gateway_info']['terminal_id'] === '000000MB');
+    }
 }

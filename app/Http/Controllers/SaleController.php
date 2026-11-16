@@ -20,6 +20,7 @@ class SaleController extends Controller
             'scenarios' => FakeVneClient::SCENARIOS,
             'posDriver' => config('orio.pos.driver'),
             'posScenarios' => \App\Services\Pos\FakePos::SCENARIOS,
+            'posTerminals' => config('orio.pos.driver') === 'manual' ? [] : \App\Services\Pos\CloudPos::terminalChoices(),
             'initial' => $this->openSaleState($request),
         ]);
     }
@@ -42,7 +43,7 @@ class SaleController extends Controller
         }
 
         return [
-            'sale' => $sale->only(['id', 'status', 'total_cents', 'paid_cents', 'payment_method', 'document_type']),
+            'sale' => $sale->only(['id', 'status', 'total_cents', 'paid_cents', 'payment_method', 'pos_terminal_id', 'document_type']),
             'document_type' => $sale->document_type,
             'customer' => $sale->customer,
             'rows' => $sale->items->map(fn ($item) => array_merge(

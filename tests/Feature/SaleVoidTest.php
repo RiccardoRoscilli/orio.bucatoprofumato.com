@@ -34,7 +34,7 @@ class SaleVoidTest extends TestCase
 
     private bool $refundOk = true;
 
-    private function receiptPaidByCard(): Sale
+    private function receiptPaidByCard(?string $terminal = null): Sale
     {
         Http::fake(function (Request $r) {
             $path = parse_url($r->url(), PHP_URL_PATH);
@@ -53,7 +53,7 @@ class SaleVoidTest extends TestCase
             'document_type' => 'scontrino',
             'items' => [['product_id' => $this->product->id, 'qty' => 2]],
         ])->json('sale.id');
-        $this->postJson("/vendite/{$id}/pagamento", ['method' => 'pos'])->assertOk();
+        $this->postJson("/vendite/{$id}/pagamento", ['method' => 'pos', 'terminal' => $terminal])->assertOk();
         $this->getJson("/vendite/{$id}/pagamento")->assertJson(['state' => 'completed']);
         $this->postJson("/vendite/{$id}/scontrino")->assertOk();
 
@@ -134,5 +134,14 @@ class SaleVoidTest extends TestCase
         ])->json('sale.id');
 
         $this->postJson("/vendite/{$id}/storno")->assertStatus(422);
+    }
+
+    public function test_refund_uses_the_group_key_of_the_terminal_that_was_paid_on(): void
+    {
+        config(['orio.pos.terminals' => 'SmartPOS|000000MB, Telefono|000001AB|phone-key']);
+        $sale = $this->receiptPaidByCard('000001AB');
+
+        $this->postJson("/vendite/{$sale->id}/storno")->assertOk()->assertJson(['state' => 'done']);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), "/orders/{$sale->pos_order_id}/refunds?api_key=phone-key"));
     }
 }

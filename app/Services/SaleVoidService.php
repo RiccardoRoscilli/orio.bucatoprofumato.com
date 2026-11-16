@@ -43,7 +43,7 @@ class SaleVoidService
 
         if ($this->needsRefund($sale)) {
             try {
-                $this->pos->refund($sale->pos_order_id, $sale->paid_cents ?: $sale->total_cents, $sale->id);
+                $this->pos->forTerminal($sale->pos_terminal_id)->refund($sale->pos_order_id, $sale->paid_cents ?: $sale->total_cents, $sale->id);
             } catch (PosException $e) {
                 return [
                     'state' => 'refund_failed',

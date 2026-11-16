@@ -27,7 +27,19 @@ const emptyCustomer = () => ({
     city: '', province: '', sdi_code: '', pec: '', email: '',
 });
 
-export default (initial = null, posDriver = 'manual') => ({
+const TERMINAL_KEY = 'orio.posTerminal';
+
+function pickTerminal(terminals) {
+    let saved = null;
+    try {
+        saved = localStorage.getItem(TERMINAL_KEY);
+    } catch (e) {
+        // archivio del browser non disponibile: si parte dal primo terminale
+    }
+    return terminals.some((t) => t.id === saved) ? saved : (terminals[0]?.id ?? null);
+}
+
+export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
     rows: [],
 
     // Bozza salvata sul server a ogni modifica del carrello
@@ -60,6 +72,9 @@ export default (initial = null, posDriver = 'manual') => ({
     // Finestra di incasso / esito
     modal: null, // null | 'payment' (VNE) | 'card' (POS collegato) | 'pos' (POS a mano) | 'done'
     posDriver,
+    // Terminali collegati (SmartPOS, telefoni Tap to Pay): l'ultimo scelto resta per la postazione
+    posTerminals,
+    terminal: pickTerminal(posTerminals),
     sale: null,
     payment: null,
     scenario: 'completed',
@@ -115,6 +130,7 @@ export default (initial = null, posDriver = 'manual') => ({
             this.busy = true;
             this.payment = { state: 'pending', method: state.sale.payment_method, details: { amount: state.sale.total_cents, inserted: 0, rest: 0 } };
             this.modal = state.sale.payment_method === 'pos' ? 'card' : 'payment';
+            if (state.sale.pos_terminal_id) this.terminal = state.sale.pos_terminal_id;
             this.poll();
         } else if (state.sale.status === 'pagata') {
             this.sale = state.sale;
@@ -379,6 +395,19 @@ export default (initial = null, posDriver = 'manual') => ({
         }
     },
 
+    chooseTerminal(id) {
+        this.terminal = id;
+        try {
+            localStorage.setItem(TERMINAL_KEY, id);
+        } catch (e) {
+            // non ricordato tra un ricaricamento e l'altro, la scelta vale comunque per questo incasso
+        }
+    },
+
+    get terminalName() {
+        return this.posTerminals.find((t) => t.id === this.terminal)?.name ?? 'POS';
+    },
+
     // POS collegato: l'importo va al terminale e Orio aspetta l'esito
     async startCard() {
         this.payment = { state: 'sending', method: 'pos' };
@@ -386,7 +415,7 @@ export default (initial = null, posDriver = 'manual') => ({
         this.cancelMessage = null;
         this.modal = 'card';
         try {
-            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos' });
+            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos', terminal: this.terminal });
             this.payment.state = 'pending';
             this.poll();
         } catch (e) {

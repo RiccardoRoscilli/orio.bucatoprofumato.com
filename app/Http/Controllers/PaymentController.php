@@ -10,12 +10,17 @@ use App\Services\Vne\FakeVneClient;
 use App\Services\Vne\VneClient;
 use App\Services\Vne\VneException;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class PaymentController extends Controller
 {
     public function start(Request $request, Sale $sale, VneClient $vne, CloudPos $pos)
     {
-        $data = $request->validate(['method' => 'required|in:contanti,pos', 'manual' => 'boolean']);
+        $data = $request->validate([
+            'method' => 'required|in:contanti,pos',
+            'manual' => 'boolean',
+            'terminal' => ['nullable', 'string', Rule::in(array_column(CloudPos::terminals(), 'id'))],
+        ]);
         $method = $data['method'];
 
         abort_unless(in_array($sale->status, ['bozza'], true), 422, 'La vendita non è in bozza.');
@@ -30,15 +35,16 @@ class PaymentController extends Controller
 
         // POS in cloud: l'importo va al terminale, l'esito arriva col polling
         if ($method === 'pos') {
+            $pos = $pos->forTerminal($data['terminal'] ?? null);
             try {
                 $orderId = $pos->start($sale);
             } catch (PosException $e) {
                 return response()->json(['message' => $e->getMessage()], 502);
             }
 
-            $sale->update(['payment_method' => 'pos', 'status' => 'in_pagamento', 'pos_order_id' => $orderId]);
+            $sale->update(['payment_method' => 'pos', 'status' => 'in_pagamento', 'pos_terminal_id' => $pos->terminalId(), 'pos_order_id' => $orderId]);
 
-            return response()->json(['state' => 'pending', 'order_id' => $orderId]);
+            return response()->json(['state' => 'pending', 'order_id' => $orderId, 'terminal' => $pos->terminalId()]);
         }
 
         try {
@@ -107,7 +113,7 @@ class PaymentController extends Controller
     private function pollPos(Sale $sale, CloudPos $pos)
     {
         try {
-            $result = $pos->status($sale->pos_order_id, $sale->id);
+            $result = $pos->forTerminal($sale->pos_terminal_id)->status($sale->pos_order_id, $sale->id);
         } catch (PosException $e) {
             return response()->json(['state' => 'error', 'message' => $e->getMessage()]);
         }
@@ -134,7 +140,7 @@ class PaymentController extends Controller
         // POS cloud: l'annullo arriva al terminale, l'esito lo conferma il polling
         if ($sale->pos_order_id) {
             try {
-                $status = $pos->cancel($sale->pos_order_id, $sale->id);
+                $status = $pos->forTerminal($sale->pos_terminal_id)->cancel($sale->pos_order_id, $sale->id);
             } catch (PosException $e) {
                 return response()->json(['message' => $e->getMessage()], 502);
             }

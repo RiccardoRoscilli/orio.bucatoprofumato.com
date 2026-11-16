@@ -24,7 +24,11 @@ return [
         // fake = terminale simulato per le prove
         'driver' => env('POS_DRIVER', 'manual'),
         'api_key' => env('MULTISAFEPAY_POS_API_KEY'), // chiave del GRUPPO terminali (Devices > Terminals > Manage groups)
-        'terminal_id' => env('MULTISAFEPAY_TERMINAL_ID'), // TID del terminale
+        'terminal_id' => env('MULTISAFEPAY_TERMINAL_ID'), // TID del terminale (se ce n'e' uno solo)
+        // Piu' terminali tra cui scegliere in cassa (SmartPOS, telefoni Tap to Pay), separati da virgola:
+        // "Nome|TID|chiave del gruppo". La chiave si puo' omettere se e' quella di MULTISAFEPAY_POS_API_KEY.
+        // Es. POS_TERMINALS="SmartPOS|000000MB,Telefono Tap to Pay|000001AB|chiave-gruppo-telefono"
+        'terminals' => env('POS_TERMINALS'),
         'base_url' => env('MULTISAFEPAY_POS_BASE_URL', 'https://api.multisafepay.com/v1/json'),
         'notification_url' => env('MULTISAFEPAY_NOTIFICATION_URL'), // facoltativo: Orio legge l'esito da solo
         'timeout' => 15,

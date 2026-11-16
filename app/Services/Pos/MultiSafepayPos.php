@@ -9,9 +9,9 @@ class MultiSafepayPos extends CloudPos
 {
     protected function send(string $method, string $path, array $body = []): array
     {
-        $key = config('orio.pos.api_key');
-        if (! $key || ! config('orio.pos.terminal_id')) {
-            throw new PosException('POS MultiSafepay non configurato: mancano MULTISAFEPAY_POS_API_KEY o MULTISAFEPAY_TERMINAL_ID.');
+        $key = $this->apiKey();
+        if (! $key || ! $this->terminalId()) {
+            throw new PosException('POS MultiSafepay non configurato: mancano la chiave del gruppo terminali o il TID (MULTISAFEPAY_POS_API_KEY, MULTISAFEPAY_TERMINAL_ID o POS_TERMINALS).');
         }
 
         $request = Http::timeout(config('orio.pos.timeout', 15))->acceptJson()

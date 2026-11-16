@@ -1,5 +1,5 @@
 <x-layout title="Cassa">
-    <div x-data="cassa(@js($initial), @js($posDriver))" class="grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div x-data="cassa(@js($initial), @js($posDriver), @js($posTerminals))" class="grid gap-5 lg:grid-cols-[1fr_360px]">
         {{-- Scansione e righe della vendita --}}
         <section class="space-y-4">
             <div class="card relative p-3">
@@ -149,8 +149,21 @@
                 <p x-show="error" x-text="error" class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
                 <div class="mt-4 grid gap-2">
                     <button type="button" class="btn-primary py-5 text-xl" :disabled="!canPay" @click="pay('contanti')">Contanti</button>
-                    <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('pos')">Carta / Bancomat (POS)</button>
+                    <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('pos')">
+                        Carta / Bancomat <span x-text="posTerminals.length > 1 ? `· ${terminalName}` : '(POS)'"></span>
+                    </button>
                 </div>
+                @if (count($posTerminals) > 1)
+                    <div class="mt-4">
+                        <div class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">Terminale carta</div>
+                        <div class="grid gap-1 rounded-xl bg-stone-100 p-1" style="grid-template-columns: repeat({{ min(count($posTerminals), 3) }}, minmax(0, 1fr))">
+                            <template x-for="t in posTerminals" :key="t.id">
+                                <button type="button" class="truncate rounded-lg px-2 py-2 text-sm font-semibold" :title="`TID ${t.id}`"
+                                        :class="terminal === t.id ? 'bg-white shadow' : 'text-stone-500'" @click="chooseTerminal(t.id)" x-text="t.name"></button>
+                            </template>
+                        </div>
+                    </div>
+                @endif
                 <p class="mt-3 text-xs text-stone-500" x-show="documentType === 'fattura' && !customer.id">Per la fattura serve il cliente: cerca la partita IVA.</p>
             </div>
         </aside>
@@ -215,6 +228,7 @@
                     <div class="text-center">
                         <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Pagamento con carta / bancomat</div>
                         <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(sale.total_cents)"></div>
+                        <div x-show="posTerminals.length > 1" class="mt-1 text-sm text-stone-500" x-text="`su ${terminalName}`"></div>
                         {{-- Importo inviato al SmartPOS MultiSafepay: lo scontrino parte solo a pagamento completato.
                              Il POS non va collegato anche alla stampante fiscale, altrimenti il cliente paga due volte. --}}
                         <div class="mt-5 rounded-xl p-3 font-semibold"
@@ -236,7 +250,15 @@
                             <button type="button" class="btn-light" @click="cancelPayment()">Annulla il pagamento sul POS</button>
                         </div>
                         <div class="mt-5 grid gap-2" x-show="payment.state === 'unreachable'">
-                            <button type="button" class="btn-primary" @click="startCard()">Riprova</button>
+                            @if (count($posTerminals) > 1)
+                                <div class="flex flex-wrap justify-center gap-2">
+                                    <template x-for="t in posTerminals" :key="t.id">
+                                        <button type="button" class="rounded-full px-3 py-1.5 text-sm font-semibold ring-1" x-text="t.name"
+                                                :class="terminal === t.id ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'ring-stone-300 text-stone-600'" @click="chooseTerminal(t.id)"></button>
+                                    </template>
+                                </div>
+                            @endif
+                            <button type="button" class="btn-primary" @click="startCard()" x-text="posTerminals.length > 1 ? `Riprova su ${terminalName}` : 'Riprova'"></button>
                             <button type="button" class="btn-light" @click="manualCard()">Incassa digitando l'importo sul POS</button>
                             <p class="text-xs text-stone-500">Prima di incassare a mano controlla che sul POS non sia già comparso l'importo, per non far pagare due volte il cliente.</p>
                             <button type="button" class="btn-light" @click="modal = null; busy = false">Torna alla vendita</button>

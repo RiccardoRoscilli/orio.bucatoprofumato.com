@@ -18,8 +18,63 @@ abstract class CloudPos
 {
     public const FINAL_CANCELLED = ['cancelled', 'void', 'expired'];
 
+    /** Terminale su cui lavorano le chiamate: {id: TID, name, api_key} */
+    protected ?array $terminal = null;
+
     /** @return array{0:int, 1:array} codice HTTP e corpo JSON della risposta */
     abstract protected function send(string $method, string $path, array $body = []): array;
+
+    /**
+     * Terminali tra cui scegliere in cassa (SmartPOS, telefoni Tap to Pay): da POS_TERMINALS
+     * ("Nome|TID|chiave gruppo", separati da virgola) oppure l'unico MULTISAFEPAY_TERMINAL_ID.
+     * Ogni telefono Tap to Pay ha il suo gruppo terminali, quindi la sua chiave API.
+     *
+     * @return list<array{id:string, name:string, api_key:?string}>
+     */
+    public static function terminals(): array
+    {
+        $defaultKey = config('orio.pos.api_key');
+        $terminals = collect(explode(',', (string) config('orio.pos.terminals')))
+            ->map(fn ($entry) => array_map('trim', explode('|', $entry)))
+            ->filter(fn ($parts) => ($parts[1] ?? '') !== '')
+            ->map(fn ($parts) => ['id' => $parts[1], 'name' => $parts[0] !== '' ? $parts[0] : $parts[1], 'api_key' => ($parts[2] ?? '') ?: $defaultKey])
+            ->unique('id')->values()->all();
+
+        if (! $terminals && config('orio.pos.terminal_id')) {
+            $terminals = [['id' => (string) config('orio.pos.terminal_id'), 'name' => 'POS', 'api_key' => $defaultKey]];
+        }
+        if (! $terminals && config('orio.pos.driver') === 'fake') {
+            $terminals = [['id' => 'FAKEPOS1', 'name' => 'SmartPOS (prova)', 'api_key' => null], ['id' => 'FAKETAP1', 'name' => 'Telefono Tap to Pay (prova)', 'api_key' => null]];
+        }
+
+        return $terminals;
+    }
+
+    /** Elenco per la cassa, senza chiavi API. */
+    public static function terminalChoices(): array
+    {
+        return array_map(fn ($t) => ['id' => $t['id'], 'name' => $t['name']], static::terminals());
+    }
+
+    /** Lavora sul terminale indicato (TID); null o sconosciuto = il primo configurato. */
+    public function forTerminal(?string $terminalId): static
+    {
+        $terminals = static::terminals();
+        $clone = clone $this;
+        $clone->terminal = collect($terminals)->firstWhere('id', $terminalId) ?? ($terminals[0] ?? null);
+
+        return $clone;
+    }
+
+    public function terminalId(): ?string
+    {
+        return ($this->terminal ?? $this->forTerminal(null)->terminal)['id'] ?? null;
+    }
+
+    protected function apiKey(): ?string
+    {
+        return ($this->terminal ?? $this->forTerminal(null)->terminal)['api_key'] ?? null;
+    }
 
     /** Manda l'importo della vendita al terminale. Ritorna l'order_id da seguire. */
     public function start(Sale $sale): string
@@ -33,7 +88,7 @@ abstract class CloudPos
             'currency' => 'EUR',
             'amount' => $sale->total_cents,
             'description' => 'Orio vendita #' . $sale->id,
-            'gateway_info' => ['terminal_id' => (string) config('orio.pos.terminal_id')],
+            'gateway_info' => ['terminal_id' => (string) $this->terminalId()],
         ];
         if ($url = config('orio.pos.notification_url')) {
             $body['payment_options'] = ['notification_url' => $url, 'notification_method' => 'POST'];
@@ -102,6 +157,7 @@ abstract class CloudPos
     {
         PosTransaction::create([
             'sale_id' => $saleId,
+            'terminal_id' => $this->terminalId(),
             'order_id' => $orderId,
             'action' => $action,
             'request' => $request ?: null,

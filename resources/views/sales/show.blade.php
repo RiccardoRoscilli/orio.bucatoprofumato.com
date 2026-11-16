@@ -67,6 +67,9 @@
                 <div class="flex justify-between"><span class="text-stone-500">Data</span><span>{{ $sale->created_at->format('d/m/Y H:i') }}</span></div>
                 <div class="flex justify-between"><span class="text-stone-500">Operatore</span><span>{{ $sale->user->name }}</span></div>
                 <div class="flex justify-between"><span class="text-stone-500">Pagamento</span><span>{{ \App\Models\Sale::PAYMENT_METHODS[$sale->payment_method] ?? '—' }}</span></div>
+                @if ($sale->pos_terminal_id)
+                    <div class="flex justify-between"><span class="text-stone-500">Terminale</span><span>{{ collect(\App\Services\Pos\CloudPos::terminalChoices())->firstWhere('id', $sale->pos_terminal_id)['name'] ?? '' }} · TID {{ $sale->pos_terminal_id }}</span></div>
+                @endif
                 <div class="flex justify-between"><span class="text-stone-500">Incassato</span><span class="font-semibold">{{ euro($sale->paid_cents) }}</span></div>
                 @if ($sale->receipt_number)
                     <div class="flex justify-between"><span class="text-stone-500">Scontrino</span><span class="font-semibold">{{ $sale->receipt_number }}</span></div>

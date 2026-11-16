@@ -24,7 +24,7 @@ class DirectVneClient extends VneClient
             ->timeout(config('orio.vne.timeout'))
             ->retry(2, 200, throw: false)
             ->asJson()
-            ->post("https://{$host}/selfcashapi/", $payload);
+            ->post(BrowserVneClient::scheme() . "://{$host}/selfcashapi/", $payload);
 
         $json = $response->json();
 

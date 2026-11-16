@@ -119,4 +119,13 @@ class VneRelayTest extends TestCase
             'tipo' => 20, 'req_status' => 1, 'recycler' => ['totalInRecycle' => 15000], 'hopper' => ['totalInRecycle' => 2300],
         ]]]])->assertOk()->assertJson(['ok' => true]);
     }
+
+    public function test_http_scheme_from_configuration(): void
+    {
+        config(['orio.vne.scheme' => 'http']);
+        $sale = $this->draft();
+
+        $this->postJson("/vendite/{$sale->id}/pagamento", ['method' => 'contanti'])
+            ->assertStatus(428)->assertJsonPath('vne_relay.url', 'http://192.168.69.230/selfcashapi/');
+    }
 }

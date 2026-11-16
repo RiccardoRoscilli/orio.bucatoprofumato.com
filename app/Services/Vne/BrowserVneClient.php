@@ -37,7 +37,12 @@ class BrowserVneClient extends VneClient
     {
         $host = config('orio.vne.host');
 
-        return $host ? "https://{$host}/selfcashapi/" : null;
+        return $host ? self::scheme() . "://{$host}/selfcashapi/" : null;
+    }
+
+    public static function scheme(): string
+    {
+        return config('orio.vne.scheme') === 'http' ? 'http' : 'https';
     }
 
     protected function send(array $payload): array

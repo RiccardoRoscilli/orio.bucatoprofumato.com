@@ -29,7 +29,7 @@ class SettingsTest extends TestCase
         return array_replace_recursive([
             'company' => ['name' => 'LE ESSENZE DI ELDA SRL', 'address' => 'Via Portico 71', 'vat_code' => '04872330164'],
             'fiscal_printer' => ['driver' => 'axon', 'host' => '192.168.1.50', 'departments' => [22 => 1, 10 => 2, 5 => 3, 4 => 4], 'payment_cash' => 1, 'payment_card' => 2],
-            'vne' => ['driver' => 'direct', 'host' => '192.168.1.60', 'op_name' => 'orio'],
+            'vne' => ['driver' => 'browser', 'host' => '192.168.1.60', 'scheme' => 'http', 'op_name' => 'orio'],
             'pos' => ['driver' => 'multisafepay'],
             'terminals' => [
                 ['name' => 'SmartPOS', 'id' => '000000MB', 'api_key' => 'pos-key-1234', 'active' => '1', 'original' => ''],
@@ -62,6 +62,7 @@ class SettingsTest extends TestCase
         $this->assertSame('192.168.1.50', config('orio.fiscal_printer.host'));
         $this->assertSame([22 => 1, 10 => 2, 5 => 3, 4 => 4], config('orio.fiscal_printer.departments'));
         $this->assertSame('192.168.1.60', config('orio.vne.host'));
+        $this->assertSame('http', config('orio.vne.scheme'));
         $this->assertSame('tea-pass-0000', config('orio.tea.password'));
         $this->assertSame('BG', config('orio.tea.shipping.region'));
         $this->assertSame(['negozio@example.com'], config('orio.closure.alert_emails'));

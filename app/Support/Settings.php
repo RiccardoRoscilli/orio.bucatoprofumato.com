@@ -29,6 +29,7 @@ class Settings
 
         'vne.driver' => 'text',
         'vne.host' => 'text',
+        'vne.scheme' => 'text',
         'vne.op_name' => 'text',
 
         'pos.driver' => 'text',

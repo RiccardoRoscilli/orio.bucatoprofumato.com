@@ -61,6 +61,7 @@ class SettingsController extends Controller
 
             'vne.driver' => ['required', Rule::in(array_keys(self::DRIVERS['vne']))],
             'vne.host' => ['nullable', 'required_unless:vne.driver,fake', self::HOST],
+            'vne.scheme' => 'required|in:https,http',
             'vne.op_name' => 'nullable|string|max:30',
 
             'pos.driver' => ['required', Rule::in(array_keys(self::DRIVERS['pos']))],
@@ -129,6 +130,7 @@ class SettingsController extends Controller
             'fiscal_printer.payment_card' => $data['fiscal_printer']['payment_card'],
             'vne.driver' => $data['vne']['driver'],
             'vne.host' => $data['vne']['host'] ?? null,
+            'vne.scheme' => $data['vne']['scheme'],
             'vne.op_name' => $data['vne']['op_name'] ?? null,
             'pos.driver' => $data['pos']['driver'],
             'pos.terminals' => $terminals,

@@ -95,7 +95,7 @@
             <section id="cassetto" class="card scroll-mt-20 p-5" x-data="{ driver: @js($v('vne.driver')) }">
                 <h2 class="font-bold">Cassetto automatico contanti (VNE)</h2>
                 <p class="mb-4 text-sm text-stone-500">Il cassetto che accetta i contanti e dà il resto. Con Orio su internet scegli "Collegato dal tablet": è il browser del tablet di cassa, sulla rete del negozio, a parlare con il cassetto.</p>
-                <div class="grid gap-3 sm:grid-cols-3">
+                <div class="grid gap-3 sm:grid-cols-4">
                     <label class="block">
                         <span class="mb-1 block text-sm font-semibold">Collegamento</span>
                         <select name="vne[driver]" class="input" x-model="driver">
@@ -107,6 +107,13 @@
                     <label class="block">
                         <span class="mb-1 block text-sm font-semibold">Indirizzo IP</span>
                         <input name="vne[host]" value="{{ $v('vne.host') }}" class="input font-mono" placeholder="192.168.1.60" :required="driver !== 'fake'">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1 block text-sm font-semibold">Protocollo</span>
+                        <select name="vne[scheme]" class="input">
+                            <option value="https" @selected($v('vne.scheme') !== 'http')>https (certificato da accettare)</option>
+                            <option value="http" @selected($v('vne.scheme') === 'http')>http (con il flag di Chrome)</option>
+                        </select>
                     </label>
                     <label class="block">
                         <span class="mb-1 block text-sm font-semibold">Nome operatore sul cassetto</span>
@@ -122,7 +129,10 @@
                     <span x-show="testing" class="text-stone-500">…</span>
                     <span x-show="result" x-text="result?.message" :class="result?.ok ? 'text-emerald-700' : 'text-red-700'"></span>
                 </div>
-                <p class="mt-2 text-xs text-stone-500">La prima volta, sul tablet apri <span class="font-mono">https://IP-del-cassetto/selfcashapi/</span> e accetta il certificato del cassetto ("Avanzate" → "Procedi").</p>
+                <p class="mt-2 text-xs text-stone-500">
+                    Con <strong>https</strong>: sul tablet apri <span class="font-mono">https://IP-del-cassetto/selfcashapi/</span> e accetta il certificato ("Avanzate" → "Procedi"; se non c'è, tocca la pagina e scrivi <span class="font-mono">thisisunsafe</span>). Chrome però lo dimentica dopo qualche giorno.
+                    Con <strong>http</strong> non serve: aggiungi <span class="font-mono">http://IP-del-cassetto</span> in <span class="font-mono">chrome://flags</span> → "Insecure origins treated as secure", insieme alla stampante, separati da virgola.
+                </p>
             </section>
 
             {{-- Terminali carta --}}

@@ -67,8 +67,13 @@ async function diagnose(url, error) {
     if (reachable) {
         return `la cassa automatica risponde, ma non lascia leggere la risposta a Orio (CORS): va abilitato sulla VNE. Dettaglio: ${error.message}`;
     }
-    return `il tablet non raggiunge la cassa automatica: apri https://${host}/selfcashapi/ in una scheda, accetta il certificato ` +
-        `("Avanzate" > "Procedi") e riprova. Se non si apre, controlla rete e IP in Gestione > Configurazione. Dettaglio: ${error.message}`;
+    if (url.startsWith('http:')) {
+        return `il tablet non raggiunge la cassa automatica in http: in chrome://flags, alla voce "Insecure origins treated as secure", ` +
+            `deve esserci http://${host} (Enabled, poi Relaunch). Se c'è già, controlla rete e IP in Gestione > Configurazione. Dettaglio: ${error.message}`;
+    }
+    return `il tablet non raggiunge la cassa automatica: apri ${url} in una scheda, accetta il certificato ` +
+        `("Avanzate" > "Procedi", oppure tocca la pagina e scrivi thisisunsafe) e riprova. ` +
+        `Se non si apre, controlla rete e IP in Gestione > Configurazione. Dettaglio: ${error.message}`;
 }
 
 /** Manda il payload alla VNE e restituisce la voce da allegare a Orio. */

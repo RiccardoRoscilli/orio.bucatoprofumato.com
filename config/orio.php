@@ -40,6 +40,8 @@ return [
         // fake = cassa simulata in orio, direct = chiamata dal server a https://VNE_HOST/selfcashapi/
         'driver' => env('VNE_DRIVER', 'fake'),
         'host' => env('VNE_HOST'),
+        // https (certificato della macchina, va accettato su Chrome) oppure http
+        'scheme' => env('VNE_SCHEME', 'https'),
         'op_name' => env('VNE_OP_NAME', 'orio'),
         'timeout' => 5,
     ],

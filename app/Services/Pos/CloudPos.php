@@ -25,20 +25,19 @@ abstract class CloudPos
     abstract protected function send(string $method, string $path, array $body = []): array;
 
     /**
-     * Terminali tra cui scegliere in cassa (SmartPOS, telefoni Tap to Pay): da POS_TERMINALS
-     * ("Nome|TID|chiave gruppo", separati da virgola) oppure l'unico MULTISAFEPAY_TERMINAL_ID.
-     * Ogni telefono Tap to Pay ha il suo gruppo terminali, quindi la sua chiave API.
+     * Terminali attivi tra cui scegliere in cassa (SmartPOS, telefoni Tap to Pay), oppure
+     * l'unico MULTISAFEPAY_TERMINAL_ID del .env. Ogni telefono Tap to Pay ha il suo gruppo
+     * terminali, quindi la sua chiave API.
      *
      * @return list<array{id:string, name:string, api_key:?string}>
      */
     public static function terminals(): array
     {
         $defaultKey = config('orio.pos.api_key');
-        $terminals = collect(explode(',', (string) config('orio.pos.terminals')))
-            ->map(fn ($entry) => array_map('trim', explode('|', $entry)))
-            ->filter(fn ($parts) => ($parts[1] ?? '') !== '')
-            ->map(fn ($parts) => ['id' => $parts[1], 'name' => $parts[0] !== '' ? $parts[0] : $parts[1], 'api_key' => ($parts[2] ?? '') ?: $defaultKey])
-            ->unique('id')->values()->all();
+        $terminals = collect(static::configuredTerminals())
+            ->filter(fn ($t) => $t['active'])
+            ->map(fn ($t) => ['id' => $t['id'], 'name' => $t['name'], 'api_key' => $t['api_key'] ?: $defaultKey])
+            ->values()->all();
 
         if (! $terminals && config('orio.pos.terminal_id')) {
             $terminals = [['id' => (string) config('orio.pos.terminal_id'), 'name' => 'POS', 'api_key' => $defaultKey]];
@@ -48,6 +47,57 @@ abstract class CloudPos
         }
 
         return $terminals;
+    }
+
+    /**
+     * Terminali scritti in configurazione, anche quelli disattivati: dalla pagina Configurazione
+     * (lista) oppure dal .env POS_TERMINALS ("Nome|TID|chiave", separati da virgola).
+     *
+     * @return list<array{id:string, name:string, api_key:?string, active:bool}>
+     */
+    public static function configuredTerminals(): array
+    {
+        $config = config('orio.pos.terminals');
+        $rows = is_array($config)
+            ? $config
+            : collect(explode(',', (string) $config))
+                ->map(fn ($entry) => array_map('trim', explode('|', $entry)))
+                ->map(fn ($p) => ['id' => $p[1] ?? '', 'name' => $p[0] ?? '', 'api_key' => $p[2] ?? null, 'active' => true])
+                ->all();
+
+        return collect($rows)
+            ->filter(fn ($t) => trim((string) ($t['id'] ?? '')) !== '')
+            ->map(fn ($t) => [
+                'id' => trim((string) $t['id']),
+                'name' => trim((string) ($t['name'] ?? '')) ?: trim((string) $t['id']),
+                'api_key' => ($t['api_key'] ?? null) ?: null,
+                'active' => (bool) ($t['active'] ?? true),
+            ])
+            ->unique('id')->values()->all();
+    }
+
+    /**
+     * Prova della chiave del gruppo senza muovere soldi: chiede un ordine che non esiste.
+     * "Ordine non trovato" = chiave valida; il TID si verifica solo col primo pagamento.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public function ping(): array
+    {
+        try {
+            [$code, $json] = $this->send('GET', '/orders/orio-prova-collegamento');
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'MultiSafepay non raggiungibile: ' . $e->getMessage()];
+        }
+        $error = (int) ($json['error_code'] ?? 0);
+        if ($code === 401 || $code === 403 || $error === 1032) {
+            return ['ok' => false, 'message' => 'Chiave del gruppo terminali non valida (' . ($json['error_info'] ?? "HTTP {$code}") . ').'];
+        }
+        if ($code === 404 || $error === 1006 || ($json['success'] ?? false)) {
+            return ['ok' => true, 'message' => 'Chiave valida: MultiSafepay risponde. Il TID si controlla col primo pagamento di prova.'];
+        }
+
+        return ['ok' => false, 'message' => 'Risposta inattesa da MultiSafepay: ' . ($json['error_info'] ?? "HTTP {$code}")];
     }
 
     /** Elenco per la cassa, senza chiavi API. */

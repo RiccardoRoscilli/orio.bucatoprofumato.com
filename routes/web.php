@@ -86,6 +86,11 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/stampante', [FiscalPrinterController::class, 'index'])->name('fiscal-printer');
 
+        Route::get('/configurazione', [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings');
+        Route::put('/configurazione', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
+        Route::post('/configurazione/prova-pos', [\App\Http\Controllers\SettingsController::class, 'testPos'])->name('settings.test-pos');
+        Route::post('/configurazione/prova-tea', [\App\Http\Controllers\SettingsController::class, 'testTea'])->name('settings.test-tea');
+
         Route::get('/openapi', [OpenApiCallController::class, 'index'])->name('openapi-calls');
         Route::get('/openapi/csv', [OpenApiCallController::class, 'csv'])->name('openapi-calls.csv');
     });

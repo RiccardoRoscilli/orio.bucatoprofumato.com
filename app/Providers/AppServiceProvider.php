@@ -31,5 +31,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::define('admin', fn (User $user) => $user->is_admin);
+
+        // Configurazione salvata dall'admin sopra al .env (non dentro la cache di config:cache)
+        if (! in_array($_SERVER['argv'][1] ?? null, ['config:cache', 'optimize'], true)) {
+            \App\Support\Settings::apply();
+        }
     }
 }

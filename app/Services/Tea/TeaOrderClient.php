@@ -28,11 +28,25 @@ class TeaOrderClient
         return $this->request('get', '/api/orio/orders/' . rawurlencode($order->reference));
     }
 
+    /** Prova delle credenziali senza creare ordini: un riferimento inesistente deve dare 404. */
+    public function ping(): array
+    {
+        $result = $this->request('get', '/api/orio/orders/ORIO-PROVA-COLLEGAMENTO');
+        if ($result['status'] === 404) {
+            return ['ok' => true, 'message' => "Collegamento riuscito: teaerp riconosce l'utente di Orio."];
+        }
+        if (in_array($result['status'], [401, 403], true)) {
+            return ['ok' => false, 'message' => 'Utente o password non accettati da teaerp.'];
+        }
+
+        return ['ok' => false, 'message' => $result['message'] ?? 'Risposta inattesa da teaerp.'];
+    }
+
     /** @return array{ok:bool, status:int, data:array, message:?string} */
     private function request(string $method, string $path, array $body = []): array
     {
         if (! config('orio.tea.url') || ! config('orio.tea.user') || ! config('orio.tea.password')) {
-            return ['ok' => false, 'status' => 0, 'data' => [], 'message' => 'Collegamento a TEA non configurato (TEA_ORDERS_URL, TEA_ORDERS_USER, TEA_ORDERS_PASSWORD).'];
+            return ['ok' => false, 'status' => 0, 'data' => [], 'message' => 'Collegamento a TEA non configurato: indirizzo, utente e password vanno in Configurazione.'];
         }
 
         try {

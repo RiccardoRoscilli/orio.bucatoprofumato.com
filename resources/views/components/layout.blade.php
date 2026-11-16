@@ -19,7 +19,8 @@
                     if (auth()->user()->can('admin')) {
                         $nav['tea-orders.index'] = 'Ordini TEA';
                         $nav['users.index'] = 'Utenti';
-                        $nav['fiscal-printer'] = 'Stampante';
+                        // La prova della stampante si apre dalla sezione Stampante della Configurazione
+                        $nav['settings'] = 'Configurazione';
                         // OpenAPI: niente voce di menu, i dati (openapi_calls) servono solo per la rifatturazione
                     }
                 @endphp

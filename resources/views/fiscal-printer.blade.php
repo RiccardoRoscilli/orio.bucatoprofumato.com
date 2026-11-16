@@ -26,7 +26,7 @@
                     <dd>contanti → n. {{ $config['payment_cash'] }}, carta/bancomat → n. {{ $config['payment_card'] }}</dd>
                 @endif
             </dl>
-            <p class="mt-3 text-xs text-stone-500">Si cambia nel file <code>.env</code> del server (voci <code>FISCAL_PRINTER_*</code>).</p>
+            <p class="mt-3 text-xs text-stone-500">Si cambia in <a href="{{ route('settings') }}#stampante" class="font-semibold text-brand-700">Configurazione</a>.</p>
         </div>
 
         @if ($config['driver'] === 'axon' && $base)

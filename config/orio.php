@@ -1,5 +1,7 @@
 <?php
 
+// Molte di queste voci si impostano dalla pagina Configurazione (admin): quelle salvate lì
+// vincono sul .env (vedi App\Support\Settings::FIELDS). Il .env resta il valore di partenza.
 return [
     // Ordini di riassortimento del negozio verso TEA: API di teaerp (utente api_client dedicato a Orio)
     'tea' => [

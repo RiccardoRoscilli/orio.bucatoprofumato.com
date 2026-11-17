@@ -88,6 +88,37 @@ class TeaOrderController extends Controller
         return response()->json(['ok' => $result['ok'], 'message' => $result['ok'] ? 'Stato aggiornato.' : $result['message'], 'tea_status' => $teaOrder->tea_status]);
     }
 
+    /** Modello Excel dell'ordine (come emmycasa): sku, name, pcs_per_box, boxes. */
+    public function orderTemplate(\App\Services\Tea\TeaOrderExcel $excel)
+    {
+        try {
+            $writer = new Xlsx($excel->template());
+        } catch (\RuntimeException $e) {
+            return redirect()->route('tea-orders.index')->with('error', 'Modello non scaricato: ' . $e->getMessage());
+        }
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), 'Orio-ordine-TEA-' . now()->format('Y-m-d') . '.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /** Legge il modello compilato e restituisce le righe da mettere nell'ordine (non lo invia). */
+    public function orderImport(Request $request, \App\Services\Tea\TeaOrderExcel $excel)
+    {
+        $request->validate(['file' => 'required|file|mimes:xlsx,xls,csv,txt,ods|max:10240'], ['file.mimes' => 'Carica il file Excel (.xlsx).']);
+
+        try {
+            $result = $excel->read($request->file('file'));
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 502);
+        }
+        if (! $result['rows'] && ! $result['problems']) {
+            return response()->json(['message' => 'Nel file non ci sono righe con scatole da ordinare (colonna «boxes»).'], 422);
+        }
+
+        return response()->json($result);
+    }
+
     public function minimumTemplate(StockMinExcel $excel)
     {
         $writer = new Xlsx($excel->template());

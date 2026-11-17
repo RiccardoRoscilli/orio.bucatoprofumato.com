@@ -28,6 +28,28 @@ class TeaOrderClient
         return $this->request('get', '/api/orio/orders/' . rawurlencode($order->reference));
     }
 
+    /**
+     * Pezzi per scatola di ogni prodotto TEA (stesso servizio usato da emmycasa per ordinare a
+     * scatole), per SKU. Tenuto un'ora in memoria: cambia di rado.
+     *
+     * @return array<string, int>
+     * @throws \RuntimeException se teaerp non risponde
+     */
+    public function productBoxes(): array
+    {
+        return \Illuminate\Support\Facades\Cache::remember('tea.product_boxes', now()->addHour(), function () {
+            $result = $this->request('get', '/api/emmycasa/product-boxes');
+            if (! $result['ok']) {
+                throw new \RuntimeException('teaerp non ha dato i pezzi per scatola: ' . $result['message']);
+            }
+
+            return collect($result['data']['products'] ?? [])
+                ->filter(fn ($p) => ($p['sku'] ?? '') !== '' && (int) ($p['pezzi_per_box'] ?? 0) > 0)
+                ->mapWithKeys(fn ($p) => [trim($p['sku']) => (int) $p['pezzi_per_box']])
+                ->all();
+        });
+    }
+
     /** Prova delle credenziali senza creare ordini: un riferimento inesistente deve dare 404. */
     public function ping(): array
     {

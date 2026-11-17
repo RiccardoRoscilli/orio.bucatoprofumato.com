@@ -65,6 +65,8 @@ Route::middleware('auth')->group(function () {
         // Riassortimento: ordini a TEA (teaerp) e scorte minime
         Route::get('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'index'])->name('tea-orders.index');
         Route::post('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'store'])->name('tea-orders.store');
+        Route::get('/ordini-tea/modello', [\App\Http\Controllers\TeaOrderController::class, 'orderTemplate'])->name('tea-orders.template');
+        Route::post('/ordini-tea/excel', [\App\Http\Controllers\TeaOrderController::class, 'orderImport'])->name('tea-orders.import');
         Route::get('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumTemplate'])->name('tea-orders.minimum');
         Route::post('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumImport'])->name('tea-orders.minimum.import');
         Route::get('/ordini-tea/{teaOrder}', [\App\Http\Controllers\TeaOrderController::class, 'show'])->name('tea-orders.show');

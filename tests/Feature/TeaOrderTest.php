@@ -84,4 +84,66 @@ class TeaOrderTest extends TestCase
         $operator = User::create(['name' => 'Op', 'username' => 'op', 'password' => 'x', 'active' => true]);
         $this->actingAs($operator)->get('/ordini-tea')->assertForbidden();
     }
+
+    private function fakeBoxes(): void
+    {
+        Http::fake(['teaerp.example/api/emmycasa/product-boxes' => Http::response(['ok' => true, 'products' => [
+            ['sku' => 'LA00012.050', 'box_ean' => '8000000000001', 'pezzi_per_box' => 6],
+            ['sku' => 'LA00012.010', 'box_ean' => '8000000000002', 'pezzi_per_box' => 12],
+        ]])]);
+    }
+
+    private function excel(array $rows): \Illuminate\Http\UploadedFile
+    {
+        $book = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $book->getActiveSheet()->fromArray(array_merge([\App\Services\Tea\TeaOrderExcel::HEADERS], $rows), null, 'A1', true);
+        $path = tempnam(sys_get_temp_dir(), 'ord') . '.xlsx';
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book))->save($path);
+
+        return new \Illuminate\Http\UploadedFile($path, 'ordine.xlsx', null, null, true);
+    }
+
+    public function test_order_template_has_emmycasa_columns_and_tea_boxes(): void
+    {
+        $this->fakeBoxes();
+        Product::create(['sku' => 'XX888', 'name' => 'Senza scatola', 'price_cents' => 100, 'vat_rate' => 22, 'active' => true, 'in_stock' => true]);
+        $response = $this->actingAs($this->admin)->get('/ordini-tea/modello')->assertOk();
+
+        $path = tempnam(sys_get_temp_dir(), 'tpl') . '.xlsx';
+        file_put_contents($path, $response->streamedContent());
+        $rows = \PhpOffice\PhpSpreadsheet\IOFactory::load($path)->getActiveSheet()->toArray(null, false, false, false);
+
+        $this->assertSame(['sku', 'name', 'pcs_per_box', 'boxes'], $rows[0]);
+        $this->assertSame(['LA00012.010', 'Ambra 100', 12, 0], $rows[1]);
+        $this->assertSame(['LA00012.050', 'Ambra 500', 6, 0], $rows[2]);
+        $this->assertCount(3, $rows); // XX senza scatola in TEA: fuori dal modello
+    }
+
+    public function test_filled_template_becomes_order_rows_in_pieces(): void
+    {
+        $this->fakeBoxes();
+        Product::create(['sku' => 'XX999', 'name' => 'Senza scatola', 'price_cents' => 100, 'vat_rate' => 22, 'active' => true, 'in_stock' => true]);
+
+        $data = $this->actingAs($this->admin)->post('/ordini-tea/excel', ['file' => $this->excel([
+            ['LA00012.050', 'Ambra 500', 6, 2],
+            ['LA00012.010', 'Ambra 100', 12, 0],
+            ['XX999', 'Senza scatola', null, 1],
+            ['NONESISTE', 'Boh', 4, 1],
+            ['LA00012.010', 'Ambra 100', 12, 'tre'],
+        ])], ['Accept' => 'application/json'])->assertOk()->json();
+
+        $this->assertCount(1, $data['rows']);
+        $this->assertSame(['LA00012.050', 12, 6], [$data['rows'][0]['sku'], $data['rows'][0]['qty'], $data['rows'][0]['pcs_per_box']]);
+        $this->assertSame([2, 12], [$data['boxes'], $data['pieces']]);
+        $this->assertCount(3, $data['problems']);
+        $this->assertSame(0, TeaOrder::count()); // il file prepara l'ordine, non lo invia
+    }
+
+    public function test_import_reports_teaerp_unreachable(): void
+    {
+        Http::fake(['*' => Http::response(['message' => 'Unauthenticated'], 401)]);
+
+        $this->actingAs($this->admin)->post('/ordini-tea/excel', ['file' => $this->excel([['LA00012.050', 'Ambra 500', 6, 2]])], ['Accept' => 'application/json'])
+            ->assertStatus(502)->assertJsonPath('message', fn ($m) => str_contains($m, 'pezzi per scatola'));
+    }
 }

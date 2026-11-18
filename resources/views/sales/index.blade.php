@@ -40,7 +40,7 @@
                             @endif
                         </td>
                         <td class="hidden px-4 py-3 md:table-cell">{{ \App\Models\Sale::PAYMENT_METHODS[$sale->payment_method] ?? '—' }}</td>
-                        <td class="hidden px-4 py-3 md:table-cell">{{ $sale->user->name }}</td>
+                        <td class="hidden px-4 py-3 md:table-cell">{{ $sale->cashierName() }}</td>
                         <td class="px-4 py-3"><x-status-badge :sale="$sale" /></td>
                         <td class="px-4 py-3 text-right font-semibold tabular-nums">{{ euro($sale->total_cents) }}</td>
                     </tr>

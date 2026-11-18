@@ -12,7 +12,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::withCount('sales')->orderByDesc('active')->orderBy('name')->get();
+        $users = User::with('badge')->withCount('sales')->orderByDesc('active')->orderBy('name')->get();
 
         return view('users.index', compact('users'));
     }

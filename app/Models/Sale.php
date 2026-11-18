@@ -26,7 +26,7 @@ class Sale extends Model
     ];
 
     protected $fillable = [
-        'user_id', 'customer_id', 'status', 'document_type', 'payment_method',
+        'user_id', 'cashier_id', 'customer_id', 'status', 'document_type', 'payment_method',
         'total_cents', 'paid_cents', 'vne_transaction_id', 'pos_terminal_id', 'pos_order_id', 'pos_transaction_id', 'receipt_number', 'receipt_xml',
         'fattura24_doc_id', 'fattura24_doc_number', 'fattura24_xml', 'notes', 'paid_at', 'closed_at',
         'receipt_voided_at', 'void_receipt_number', 'refunded_at', 'voided_by',
@@ -74,6 +74,17 @@ class Sale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Cassiera che ha fatto la vendita (badge); senza badge e' l'utente collegato. */
+    public function cashier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cashier_id');
+    }
+
+    public function cashierName(): string
+    {
+        return $this->cashier?->name ?? $this->user?->name ?? '';
     }
 
     public function payments(): HasMany

@@ -44,6 +44,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendite/{sale}/fattura', [DocumentController::class, 'invoice'])->name('sales.invoice');
     Route::get('/vendite/{sale}/fattura.pdf', [DocumentController::class, 'invoicePdf'])->name('sales.invoice.pdf');
 
+    Route::post('/presenze/badge', [\App\Http\Controllers\AttendanceController::class, 'badge'])->name('attendances.badge');
+    Route::post('/presenze/abilita', [\App\Http\Controllers\AttendanceDeviceController::class, 'activate'])->middleware('throttle:5,1')->name('devices.activate');
+
     Route::get('/clienti/piva/{vat}', [CustomerController::class, 'lookupVat'])->name('customers.lookup');
     Route::post('/clienti', [CustomerController::class, 'store'])->name('customers.store');
     Route::get('/clienti', [CustomerController::class, 'index'])->name('customers.index');
@@ -83,6 +86,20 @@ Route::middleware('auth')->group(function () {
         Route::patch('/prodotti/{product}/negozio', [ProductController::class, 'updateShop'])->name('products.shop');
 
         Route::get('/utenti', [UserController::class, 'index'])->name('users.index');
+        Route::get('/badge', [\App\Http\Controllers\BadgeController::class, 'index'])->name('badges.index');
+        Route::post('/badge', [\App\Http\Controllers\BadgeController::class, 'store'])->name('badges.store');
+        Route::get('/badge/stampa', [\App\Http\Controllers\BadgeController::class, 'print'])->name('badges.print');
+        Route::put('/badge/{badge}', [\App\Http\Controllers\BadgeController::class, 'update'])->name('badges.update');
+        Route::post('/badge/dispositivi', [\App\Http\Controllers\AttendanceDeviceController::class, 'enableThis'])->name('devices.enable');
+        Route::post('/badge/dispositivi/codice', [\App\Http\Controllers\AttendanceDeviceController::class, 'code'])->name('devices.code');
+        Route::delete('/badge/dispositivi/{device}', [\App\Http\Controllers\AttendanceDeviceController::class, 'revoke'])->name('devices.revoke');
+        Route::post('/badge/{badge}/sostituisci', [\App\Http\Controllers\BadgeController::class, 'replace'])->name('badges.replace');
+
+        Route::get('/presenze', [\App\Http\Controllers\AttendanceController::class, 'index'])->name('attendances.index');
+        Route::get('/presenze/excel', [\App\Http\Controllers\AttendanceController::class, 'excel'])->name('attendances.excel');
+        Route::post('/presenze', [\App\Http\Controllers\AttendanceController::class, 'store'])->name('attendances.store');
+        Route::put('/presenze/{attendance}', [\App\Http\Controllers\AttendanceController::class, 'update'])->name('attendances.update');
+        Route::delete('/presenze/{attendance}', [\App\Http\Controllers\AttendanceController::class, 'destroy'])->name('attendances.destroy');
         Route::post('/utenti', [UserController::class, 'store'])->name('users.store');
         Route::put('/utenti/{user}', [UserController::class, 'update'])->name('users.update');
 

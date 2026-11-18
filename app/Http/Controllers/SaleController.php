@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\Closure\ClosureStatus;
 use App\Models\Product;
+use App\Models\Attendance;
 use App\Models\Sale;
 use App\Services\FiscalPrinter\AxonG100;
 use App\Services\FiscalPrinter\EpsonFpMateXml;
@@ -22,6 +23,7 @@ class SaleController extends Controller
             'posScenarios' => \App\Services\Pos\FakePos::SCENARIOS,
             'posTerminals' => config('orio.pos.driver') === 'manual' ? [] : \App\Services\Pos\CloudPos::terminalChoices(),
             'initial' => $this->openSaleState($request),
+            'attendance' => ['present' => Attendance::presentCashiers(), 'required' => Attendance::required()],
         ]);
     }
 
@@ -106,7 +108,7 @@ class SaleController extends Controller
     {
         $day = $request->date('day') ?? today();
 
-        $sales = Sale::with('customer', 'user')
+        $sales = Sale::with('customer', 'user', 'cashier')
             ->whereDate('created_at', $day)
             ->when($request->status, fn ($q, $status) => $q->where('status', $status))
             ->latest()
@@ -117,7 +119,7 @@ class SaleController extends Controller
 
     public function show(Sale $sale)
     {
-        $sale->load('items', 'customer', 'user', 'vneTransactions', 'payments');
+        $sale->load('items', 'customer', 'user', 'cashier', 'vneTransactions', 'payments');
 
         return view('sales.show', [
             'sale' => $sale,
@@ -148,12 +150,25 @@ class SaleController extends Controller
 
         $sale = $this->findDraft($request, $data['draft_id'] ?? null);
 
-        // Resto di un pagamento a parti: le righe sono quelle gia' in parte pagate
+        // Resto di un pagamento a parti: le righe (e la cassiera) sono quelle gia' in parte pagate
         if ($sale?->paid_cents) {
             return response()->json(['sale' => $sale, 'parts' => $sale->paymentParts()]);
         }
 
+        // Cassiera della vendita: l'unica presente, oppure quella scelta col badge se sono di piu'
+        $cashierId = $this->cashierFor($request);
+        if ($cashierId === false) {
+            $present = Attendance::presentCashiers();
+
+            return response()->json([
+                'cashier_required' => true,
+                'present' => $present,
+                'message' => $present ? 'Chi sta facendo cassa? Bippa il tuo badge.' : 'Nessuna cassiera presente: bippa il badge per iniziare il turno.',
+            ], 409);
+        }
+
         $sale ??= Sale::create(['user_id' => $request->user()->id, 'document_type' => $data['document_type']]);
+        $sale->cashier_id = $cashierId;
         $this->fillSale($sale, $data);
 
         if ($sale->total_cents <= 0) {
@@ -161,6 +176,26 @@ class SaleController extends Controller
         }
 
         return response()->json(['sale' => $sale]);
+    }
+
+    /**
+     * Cassiera a cui intestare la vendita: null se i badge non sono in uso, false se va chiesta
+     * (nessuna presente, oppure piu' di una e non e' stata indicata quale).
+     */
+    private function cashierFor(Request $request): int|false|null
+    {
+        if (! Attendance::required()) {
+            return null;
+        }
+
+        $present = Attendance::open()->pluck('user_id');
+        $chosen = $request->integer('cashier_id') ?: null;
+
+        if ($chosen && $present->contains($chosen)) {
+            return $chosen;
+        }
+
+        return $present->count() === 1 ? $present->first() : false;
     }
 
     /** La bozza indicata, solo se e' dell'operatore e ancora in bozza (non in pagamento o chiusa). */

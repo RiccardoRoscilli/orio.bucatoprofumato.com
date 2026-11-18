@@ -60,7 +60,12 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-right tabular-nums">{{ $user->sales_count }}</td>
-                            <td class="px-4 py-3 text-right text-brand-700">Modifica</td>
+                            <td class="whitespace-nowrap px-4 py-3 text-right">
+                                @if ($user->badge)
+                                    <span class="badge mr-3 bg-stone-100 text-stone-700">{{ $user->badge->label() }}</span>
+                                @endif
+                                <span class="text-brand-700">Modifica</span>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

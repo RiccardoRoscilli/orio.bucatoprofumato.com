@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>{{ $title ?? 'Cassa' }} · Orio</title>
+    @auth
+        <meta name="orio-auth" content="1">
+    @endauth
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-stone-100 text-stone-900 antialiased">
@@ -19,7 +22,7 @@
                     // Voci dell'admin raccolte in un menu, per non allargare la barra.
                     // La prova della stampante si apre dalla Configurazione; OpenAPI non ha voce (dati solo per la rifatturazione)
                     $adminNav = auth()->user()->can('admin')
-                        ? ['tea-orders.index' => 'Ordini TEA', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
+                        ? ['tea-orders.index' => 'Ordini TEA', 'attendances.index' => 'Presenze', 'badges.index' => 'Badge', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
                         : [];
                     $isActive = fn ($route) => request()->routeIs(str_replace('.index', '.*', $route));
                     $adminActive = collect(array_keys($adminNav))->contains($isActive) || request()->routeIs('fiscal-printer');

@@ -65,7 +65,7 @@
         <aside class="space-y-4">
             <div class="card space-y-2 p-4 text-sm">
                 <div class="flex justify-between"><span class="text-stone-500">Data</span><span>{{ $sale->created_at->format('d/m/Y H:i') }}</span></div>
-                <div class="flex justify-between"><span class="text-stone-500">Operatore</span><span>{{ $sale->user->name }}</span></div>
+                <div class="flex justify-between"><span class="text-stone-500">{{ $sale->cashier_id ? 'Cassiera' : 'Operatore' }}</span><span>{{ $sale->cashierName() }}</span></div>
                 <div class="flex justify-between"><span class="text-stone-500">Pagamento</span><span>{{ \App\Models\Sale::PAYMENT_METHODS[$sale->payment_method] ?? '—' }}</span></div>
                 @php
                     $parts = $sale->payments->where('status', 'pagato');

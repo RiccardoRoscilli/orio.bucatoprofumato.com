@@ -2,6 +2,7 @@ import axios from 'axios';
 import { emitReceipt } from './fiscal/receipt.js';
 import { voidSale } from './fiscal/void.js';
 import { askConfirm } from './confirm';
+import { handleBadge } from './badge-scanner';
 
 const euro = (cents) => (cents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 
@@ -44,7 +45,9 @@ function pickTerminal(terminals) {
     return terminals.some((t) => t.id === saved) ? saved : (terminals[0]?.id ?? null);
 }
 
-export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
+const BADGE = /^orio[a-z0-9]{8}$/i;
+
+export default (initial = null, posDriver = 'manual', posTerminals = [], attendance = { present: [], required: false }) => ({
     rows: [],
 
     // Bozza salvata sul server a ogni modifica del carrello
@@ -92,6 +95,14 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
     splitAmount: '',
     splitError: null,
     sending: false,
+
+    // Presenze col badge: cassiere in negozio e cassiera della vendita in corso
+    present: attendance.present,
+    badgesRequired: attendance.required,
+    cashierId: null,
+    cashierCode: '',
+    cashierError: null,
+    pendingPay: null,
 
     euro,
     fmtQty,
@@ -211,6 +222,14 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
         const code = this.scan.trim();
         clearTimeout(this.searchTimer);
         if (!code) return;
+
+        if (BADGE.test(code)) {
+            this.scan = '';
+            this.results = [];
+            // Lettore lento (non intercettato da badge-scanner): stesso percorso del bip da ogni pagina
+            handleBadge(code);
+            return;
+        }
 
         if (/^\d{6,14}$/.test(code)) {
             this.scan = '';
@@ -384,6 +403,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
                 draft_id: this.draftId,
                 document_type: this.documentType,
                 customer_id: this.customer.id,
+                cashier_id: this.cashierId,
                 items: this.validRows.map((r) => ({
                     product_id: r.product_id,
                     sku: r.sku,
@@ -418,6 +438,13 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
             this.modal = 'payment';
             this.poll();
         } catch (e) {
+            // Piu' cassiere presenti (o nessuna): prima si sceglie chi fa la vendita
+            if (e.response?.status === 409 && e.response.data?.cashier_required) {
+                this.present = e.response.data.present ?? this.present;
+                this.askCashier(method, amount);
+                this.busy = false;
+                return;
+            }
             const message = firstError(e);
             if (this.modal === 'split' || this.sale?.paid_cents) {
                 if (this.modal !== 'split') this.openSplit();
@@ -430,6 +457,50 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
         } finally {
             this.sending = false;
         }
+    },
+
+    // Bip del badge (badge-scanner): con la finestra "chi fa cassa?" aperta sceglie la cassiera
+    onBadge(event) {
+        if (this.modal !== 'cashier') return;
+        event.preventDefault();
+        this.cashierCode = event.detail.code;
+        this.chooseCashier();
+    },
+
+    // Finestra "Chi sta facendo cassa?": il pagamento riparte dopo il bip del badge
+    askCashier(method, amount) {
+        this.pendingPay = { method, amount, from: this.modal };
+        this.cashierCode = '';
+        this.cashierError = null;
+        this.modal = 'cashier';
+        setTimeout(() => this.$refs.cashierScan?.focus(), 80);
+    },
+
+    async chooseCashier() {
+        const code = this.cashierCode.trim();
+        this.cashierCode = '';
+        if (!code) return;
+        try {
+            const { data } = await axios.post('/presenze/badge', { code, select: true });
+            beep('success');
+            this.present = data.present;
+            this.cashierId = data.user.id;
+            const { method, amount, from } = this.pendingPay;
+            this.pendingPay = null;
+            this.modal = from === 'split' ? 'split' : null;
+            await this.pay(method, amount);
+        } catch (e) {
+            beep('error');
+            this.cashierError = firstError(e);
+        }
+    },
+
+    cancelCashier() {
+        const from = this.pendingPay?.from;
+        this.pendingPay = null;
+        this.modal = from === 'split' ? 'split' : null;
+        this.busy = !!this.sale?.paid_cents;
+        this.focusScan();
     },
 
     /**
@@ -627,6 +698,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
         this.modal = null;
         this.sale = null;
         this.payment = null;
+        this.cashierId = null; // con piu' cassiere presenti si chiede a ogni vendita
         this.parts = [];
         this.splitAmount = '';
         this.splitError = null;

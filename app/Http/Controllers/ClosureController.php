@@ -114,6 +114,9 @@ class ClosureController extends Controller
         $from = $this->periodFrom();
         $totals = $this->totals($from, now());
 
+        // Chi non ha bippato l'uscita: turno chiuso adesso e segnalato nelle Presenze
+        \App\Models\Attendance::closeOpen();
+
         return CashClosure::create([
             'user_id' => $request->user()->id,
             'day' => today(),

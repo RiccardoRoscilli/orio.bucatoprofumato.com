@@ -1,5 +1,6 @@
 <x-layout title="Cassa">
-    <div x-data="cassa(@js($initial), @js($posDriver), @js($posTerminals))" class="grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div x-data="cassa(@js($initial), @js($posDriver), @js($posTerminals), @js($attendance))" class="grid gap-5 lg:grid-cols-[1fr_360px]"
+         @orio:badge.window="onBadge($event)" @orio:present.window="present = $event.detail">
         {{-- Scansione e righe della vendita --}}
         <section class="space-y-4">
             <div class="card relative p-3">
@@ -93,6 +94,19 @@
 
         {{-- Documento, cliente e pagamento --}}
         <aside class="space-y-4">
+            {{-- Presenze col badge: chi e' in negozio; si bippa il badge nel campo del lettore --}}
+            <div class="card px-4 py-3" x-show="badgesRequired || present.length" x-cloak>
+                <div class="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                    <span>In cassa</span><span class="normal-case font-normal">bippa il badge per entrata e uscita</span>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-1.5">
+                    <template x-for="p in present" :key="p.id">
+                        <span class="rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-800 ring-1 ring-brand-100" x-text="`${p.name} · ${p.since}`"></span>
+                    </template>
+                    <span x-show="!present.length" class="text-sm text-amber-700">Nessuna cassiera presente.</span>
+                </div>
+            </div>
+
             <div class="card p-4">
                 <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
                     <button type="button" class="rounded-lg py-2.5 font-semibold" :class="documentType === 'scontrino' ? 'bg-white shadow' : 'text-stone-500'" @click="documentType = 'scontrino'">Scontrino</button>
@@ -350,6 +364,22 @@
                             <button type="button" x-show="!parts.length" class="text-sm font-semibold text-stone-500" @click="modal = null; busy = false">Torna alla vendita</button>
                             <button type="button" x-show="parts.length" class="text-sm font-semibold text-red-700" :disabled="sending" @click="voidPartial()">Annulla la vendita e rimborsa quanto pagato</button>
                         </div>
+                    </div>
+                </template>
+
+                <template x-if="modal === 'cashier'">
+                    <div class="text-center">
+                        <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Chi sta facendo cassa?</div>
+                        <p class="mt-2 text-lg font-semibold" x-text="present.length ? 'Bippa il tuo badge' : 'Nessuna cassiera presente: bippa il badge per iniziare il turno'"></p>
+                        <div class="mt-3 flex flex-wrap justify-center gap-1.5" x-show="present.length">
+                            <template x-for="p in present" :key="p.id">
+                                <span class="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-600" x-text="p.name"></span>
+                            </template>
+                        </div>
+                        <input x-ref="cashierScan" x-init="setTimeout(() => $el.focus(), 80)" x-model="cashierCode" @keydown.enter.prevent="chooseCashier()" @blur="setTimeout(() => modal === 'cashier' && $refs.cashierScan?.focus(), 80)"
+                               class="input mt-4 text-center font-mono text-lg" placeholder="Bip del badge" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+                        <p x-show="cashierError" x-text="cashierError" class="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700"></p>
+                        <button type="button" class="btn-light mt-5 w-full" @click="cancelCashier()">Annulla</button>
                     </div>
                 </template>
 

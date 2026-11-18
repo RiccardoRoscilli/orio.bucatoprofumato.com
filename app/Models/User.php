@@ -56,4 +56,15 @@ class User extends Authenticatable
     {
         return $this->hasMany(Sale::class);
     }
+
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    /** Badge fisso assegnato (Operatore 1, 2, ...), se ne ha uno. */
+    public function badge()
+    {
+        return $this->hasOne(Badge::class);
+    }
 }

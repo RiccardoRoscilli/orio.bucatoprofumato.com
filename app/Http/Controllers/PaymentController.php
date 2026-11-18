@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sale;
+use App\Models\SalePayment;
 use App\Services\Pos\CloudPos;
 use App\Services\Pos\FakePos;
 use App\Services\Pos\PosException;
@@ -20,42 +21,64 @@ class PaymentController extends Controller
             'method' => 'required|in:contanti,pos',
             'manual' => 'boolean',
             'terminal' => ['nullable', 'string', Rule::in(array_column(CloudPos::terminals(), 'id'))],
+            // Pagamento a parti: importo di questa parte; senza, tutto il resto da pagare
+            'amount' => 'nullable|integer|min:1',
         ]);
         $method = $data['method'];
 
         abort_unless(in_array($sale->status, ['bozza'], true), 422, 'La vendita non è in bozza.');
 
+        $remaining = $sale->remainingCents();
+        $amount = $data['amount'] ?? $remaining;
+        abort_if($remaining <= 0, 422, 'La vendita è già pagata.');
+        abort_if($amount > $remaining, 422, 'L\'importo supera il resto da pagare (' . euro($remaining) . ').');
+
         // Carta/bancomat con POS non collegato (o terminale cloud irraggiungibile): la cassa chiama
         // questo solo dopo che l'operatore ha confermato in Orio l'esito positivo sul POS
         if ($method === 'pos' && (config('orio.pos.driver') === 'manual' || ($data['manual'] ?? false))) {
-            $sale->update(['payment_method' => 'pos', 'status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now()]);
+            $sale->payments()->create(['method' => 'pos', 'amount_cents' => $amount, 'paid_cents' => $amount, 'status' => 'pagato', 'manual' => true, 'paid_at' => now()]);
+            $sale->settlePayments();
 
-            return response()->json(['state' => 'completed', 'sale' => $sale]);
+            return $this->settled($sale);
         }
 
         // POS in cloud: l'importo va al terminale, l'esito arriva col polling
         if ($method === 'pos') {
             $pos = $pos->forTerminal($data['terminal'] ?? null);
             try {
-                $orderId = $pos->start($sale);
+                $orderId = $pos->start($sale, $amount);
             } catch (PosException $e) {
                 return response()->json(['message' => $e->getMessage()], 502);
             }
 
-            $sale->update(['payment_method' => 'pos', 'status' => 'in_pagamento', 'pos_terminal_id' => $pos->terminalId(), 'pos_order_id' => $orderId]);
+            $sale->payments()->create(['method' => 'pos', 'amount_cents' => $amount, 'terminal_id' => $pos->terminalId(), 'pos_order_id' => $orderId]);
+            $sale->update(['payment_method' => $sale->paid_cents ? $sale->payment_method : 'pos', 'status' => 'in_pagamento', 'pos_terminal_id' => $pos->terminalId(), 'pos_order_id' => $orderId, 'vne_transaction_id' => null]);
 
-            return response()->json(['state' => 'pending', 'order_id' => $orderId, 'terminal' => $pos->terminalId()]);
+            return response()->json(['state' => 'pending', 'order_id' => $orderId, 'terminal' => $pos->terminalId(), 'amount' => $amount]);
         }
 
         try {
-            $id = $vne->pay($sale->total_cents, false, $sale->id);
+            $id = $vne->pay($amount, false, $sale->id);
         } catch (VneException $e) {
             return response()->json(['message' => $e->getMessage()], 502);
         }
 
-        $sale->update(['payment_method' => $method, 'status' => 'in_pagamento', 'vne_transaction_id' => $id]);
+        $sale->payments()->create(['method' => $method, 'amount_cents' => $amount, 'vne_transaction_id' => $id]);
+        $sale->update(['payment_method' => $sale->paid_cents ? $sale->payment_method : $method, 'status' => 'in_pagamento', 'vne_transaction_id' => $id, 'pos_order_id' => null]);
 
-        return response()->json(['state' => 'pending', 'vne_id' => $id]);
+        return response()->json(['state' => 'pending', 'vne_id' => $id, 'amount' => $amount]);
+    }
+
+    /** Esito dopo una parte pagata: vendita pagata, oppure resto ancora da pagare. */
+    private function settled(Sale $sale, array $extra = [])
+    {
+        $sale->refresh();
+
+        return response()->json($extra + [
+            'state' => $sale->status === 'pagata' ? 'completed' : 'part_completed',
+            'sale' => $sale,
+            'parts' => $sale->paymentParts(),
+        ]);
     }
 
     /**
@@ -65,15 +88,21 @@ class PaymentController extends Controller
     public function poll(Sale $sale, VneClient $vne, CloudPos $pos)
     {
         if ($sale->status !== 'in_pagamento') {
-            return response()->json(['state' => $sale->status === 'pagata' ? 'completed' : 'cancelled', 'sale' => $sale]);
+            return response()->json([
+                'state' => $sale->status === 'pagata' ? 'completed' : ($sale->paid_cents ? 'part_completed' : 'cancelled'),
+                'sale' => $sale,
+                'parts' => $sale->paymentParts(),
+            ]);
         }
 
-        if ($sale->pos_order_id) {
-            return $this->pollPos($sale, $pos);
+        $payment = $this->current($sale);
+
+        if ($payment->pos_order_id) {
+            return $this->pollPos($sale, $payment, $pos);
         }
 
         try {
-            $response = $vne->poll($sale->vne_transaction_id, $sale->id);
+            $response = $vne->poll($payment->vne_transaction_id, $sale->id);
         } catch (VneException $e) {
             return response()->json(['state' => 'error', 'message' => $e->getMessage()]);
         }
@@ -92,55 +121,83 @@ class PaymentController extends Controller
         }
 
         if ($status === 'completed') {
-            $sale->update(['status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now()]);
+            $payment->update(['status' => 'pagato', 'paid_cents' => $payment->amount_cents, 'paid_at' => now()]);
+            $sale->settlePayments();
 
-            return response()->json(['state' => 'completed', 'details' => $details, 'sale' => $sale]);
+            return $this->settled($sale, ['details' => $details]);
         }
 
-        // returned / deleted / partial: la vendita torna in bozza, l'operatore decide come proseguire
+        // returned / deleted / partial: la parte si chiude con quanto inserito (anche niente) e si
+        // torna alla vendita; con un parziale resta da pagare il resto, in contanti o con carta
         $partial = $status === 'partial' ? max(0, (int) $details['inserted']) : 0;
-        $sale->update([
-            'status' => 'bozza',
-            'paid_cents' => $partial,
-            'vne_transaction_id' => null,
-            'notes' => $partial ? 'Pagamento parziale accettato in cassa: € ' . number_format($partial / 100, 2, ',', '.') : $sale->notes,
-        ]);
+        $payment->update($partial
+            ? ['status' => 'pagato', 'paid_cents' => min($partial, $payment->amount_cents), 'paid_at' => now()]
+            : ['status' => 'annullato']);
+        $sale->update(['vne_transaction_id' => null]);
+        $sale->settlePayments();
+        $sale->refresh();
 
-        return response()->json(['state' => $status === 'partial' ? 'partial' : 'cancelled', 'details' => $details, 'sale' => $sale]);
+        return response()->json([
+            'state' => $status === 'partial' ? 'partial' : 'cancelled',
+            'details' => $details,
+            'sale' => $sale,
+            'parts' => $sale->paymentParts(),
+        ]);
     }
 
     /** Esito del pagamento sul POS cloud: completato, rifiutato (si puo' riprovare) o annullato. */
-    private function pollPos(Sale $sale, CloudPos $pos)
+    private function pollPos(Sale $sale, SalePayment $payment, CloudPos $pos)
     {
         try {
-            $result = $pos->forTerminal($sale->pos_terminal_id)->status($sale->pos_order_id, $sale->id);
+            $result = $pos->forTerminal($payment->terminal_id)->status($payment->pos_order_id, $sale->id);
         } catch (PosException $e) {
             return response()->json(['state' => 'error', 'message' => $e->getMessage()]);
         }
 
         if ($result['status'] === 'completed') {
-            $sale->update(['status' => 'pagata', 'paid_cents' => $sale->total_cents, 'paid_at' => now(), 'pos_transaction_id' => $result['transaction_id']]);
+            $payment->update(['status' => 'pagato', 'paid_cents' => $payment->amount_cents, 'paid_at' => now(), 'pos_transaction_id' => $result['transaction_id']]);
+            $sale->update(['pos_transaction_id' => $result['transaction_id']]);
+            $sale->settlePayments();
 
-            return response()->json(['state' => 'completed', 'sale' => $sale]);
+            return $this->settled($sale);
         }
 
         if (in_array($result['status'], CloudPos::FINAL_CANCELLED, true)) {
-            $sale->update(['status' => 'bozza', 'pos_order_id' => null]);
+            $payment->update(['status' => 'annullato']);
+            $sale->update(['pos_order_id' => null]);
+            $sale->settlePayments();
+            $sale->refresh();
 
-            return response()->json(['state' => 'cancelled', 'pos_status' => $result['status'], 'sale' => $sale]);
+            return response()->json(['state' => 'cancelled', 'pos_status' => $result['status'], 'sale' => $sale, 'parts' => $sale->paymentParts()]);
         }
 
         return response()->json(['state' => $result['status'] === 'declined' ? 'declined' : 'pending']);
     }
 
+    /**
+     * Parte in corso della vendita. Le vendite messe in pagamento prima dei pagamenti a parti
+     * non hanno la riga: la si ricostruisce dai dati della vendita.
+     */
+    private function current(Sale $sale): SalePayment
+    {
+        return $sale->pendingPayment() ?? $sale->payments()->create([
+            'method' => $sale->pos_order_id ? 'pos' : ($sale->payment_method ?: 'contanti'),
+            'amount_cents' => $sale->remainingCents() ?: $sale->total_cents,
+            'terminal_id' => $sale->pos_order_id ? $sale->pos_terminal_id : null,
+            'pos_order_id' => $sale->pos_order_id,
+            'vne_transaction_id' => $sale->pos_order_id ? null : $sale->vne_transaction_id,
+        ]);
+    }
+
     public function cancel(Request $request, Sale $sale, VneClient $vne, CloudPos $pos)
     {
         abort_unless($sale->status === 'in_pagamento', 422, 'Nessun pagamento in corso.');
+        $payment = $this->current($sale);
 
         // POS cloud: l'annullo arriva al terminale, l'esito lo conferma il polling
-        if ($sale->pos_order_id) {
+        if ($payment->pos_order_id) {
             try {
-                $status = $pos->forTerminal($sale->pos_terminal_id)->cancel($sale->pos_order_id, $sale->id);
+                $status = $pos->forTerminal($payment->terminal_id)->cancel($payment->pos_order_id, $sale->id);
             } catch (PosException $e) {
                 return response()->json(['message' => $e->getMessage()], 502);
             }
@@ -153,7 +210,7 @@ class PaymentController extends Controller
         $mode = (int) $request->validate(['mode' => 'required|in:1,2'])['mode'];
 
         try {
-            $response = $vne->cancel($sale->vne_transaction_id, $mode, $sale->id);
+            $response = $vne->cancel($payment->vne_transaction_id, $mode, $sale->id);
         } catch (VneException $e) {
             return response()->json(['message' => $e->getMessage()], 502);
         }

@@ -152,6 +152,7 @@
                     <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('pos')">
                         Carta / Bancomat <span x-text="posTerminals.length > 1 ? `· ${terminalName}` : '(POS)'"></span>
                     </button>
+                    <button type="button" class="py-1 text-sm font-semibold text-brand-700 disabled:text-stone-400" :disabled="!canPay" @click="openSplit()">Dividi il pagamento (due carte, carta + contanti)</button>
                 </div>
                 @if (count($posTerminals) > 1)
                     <div class="mt-4">
@@ -174,7 +175,8 @@
                 <template x-if="modal === 'payment'">
                     <div>
                         <div class="text-sm font-semibold uppercase tracking-wide text-stone-500" x-text="payment.method === 'carta' ? 'Pagamento con carta sulla cassa' : 'Pagamento in contanti sulla cassa'"></div>
-                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(sale.total_cents)"></div>
+                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(payment.amount ?? sale.total_cents)"></div>
+                        <div x-show="(payment.amount ?? sale.total_cents) < sale.total_cents" class="mt-1 text-sm text-stone-500" x-text="`parte del totale di ${euro(sale.total_cents)}`"></div>
 
                         <dl class="mt-5 grid grid-cols-2 gap-3 text-center">
                             <div class="rounded-xl bg-stone-100 p-3">
@@ -196,8 +198,8 @@
                             <span x-show="payment.state === 'pending'">In attesa del cliente alla cassa…</span>
                             <span x-show="payment.state === 'notCompleted'" x-text="`La cassa non riesce a dare tutto il resto: mancano ${euro(payment.not_paid)}. Fai un refill oppure annulla accettando il parziale.`"></span>
                             <span x-show="payment.state === 'error'" x-text="payment.message"></span>
-                            <span x-show="payment.state === 'cancelled'">Pagamento annullato: la vendita è tornata in bozza.</span>
-                            <span x-show="payment.state === 'partial'" x-text="`Pagamento parziale: incassati ${euro(payment.details?.inserted ?? 0)}. La vendita è tornata in bozza.`"></span>
+                            <span x-show="payment.state === 'cancelled'" x-text="sale.paid_cents ? 'Pagamento annullato: resta da pagare ' + euro(remainingCents) + '.' : 'Pagamento annullato: la vendita è tornata in bozza.'"></span>
+                            <span x-show="payment.state === 'partial'" x-text="`Pagamento parziale: incassati ${euro(payment.details?.inserted ?? 0)}. Resta da pagare ${euro(remainingCents)}, in contanti o con carta.`"></span>
                         </div>
                         <p x-show="cancelMessage" x-text="cancelMessage" class="mt-2 text-center text-sm text-stone-500"></p>
 
@@ -206,7 +208,7 @@
                             <button type="button" class="btn-light" @click="cancelPayment(1)">Annulla accettando il parziale</button>
                         </div>
                         <div class="mt-5" x-show="['cancelled', 'partial'].includes(payment.state)">
-                            <button type="button" class="btn-primary w-full" @click="modal = null">Torna alla vendita</button>
+                            <button type="button" class="btn-primary w-full" @click="backToSale()" x-text="sale.paid_cents ? 'Paga il resto' : 'Torna alla vendita'"></button>
                         </div>
 
                         @if ($vneDriver === 'fake')
@@ -227,7 +229,8 @@
                 <template x-if="modal === 'card'">
                     <div class="text-center">
                         <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Pagamento con carta / bancomat</div>
-                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(sale.total_cents)"></div>
+                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(payment.amount ?? sale.total_cents)"></div>
+                        <div x-show="(payment.amount ?? sale.total_cents) < sale.total_cents" class="mt-1 text-sm text-stone-500" x-text="`parte del totale di ${euro(sale.total_cents)}`"></div>
                         <div x-show="posTerminals.length > 1" class="mt-1 text-sm text-stone-500" x-text="`su ${terminalName}`"></div>
                         {{-- Importo inviato al SmartPOS MultiSafepay: lo scontrino parte solo a pagamento completato.
                              Il POS non va collegato anche alla stampante fiscale, altrimenti il cliente paga due volte. --}}
@@ -242,7 +245,7 @@
                             <span x-show="payment.state === 'declined'">Carta rifiutata: il cliente può riprovare sul POS, anche con un'altra carta.</span>
                             <span x-show="payment.state === 'error'" x-text="`Esito non ancora leggibile (${payment.message}). Riprovo…`"></span>
                             <span x-show="payment.state === 'unreachable'" x-text="payment.message"></span>
-                            <span x-show="payment.state === 'cancelled'">Pagamento annullato o scaduto: la vendita è tornata aperta.</span>
+                            <span x-show="payment.state === 'cancelled'" x-text="sale.paid_cents ? 'Pagamento annullato o scaduto: resta da pagare ' + euro(remainingCents) + '.' : 'Pagamento annullato o scaduto: la vendita è tornata aperta.'"></span>
                         </div>
                         <p x-show="cancelMessage && payment.state !== 'cancelled'" x-text="cancelMessage" class="mt-2 text-sm text-stone-500"></p>
 
@@ -258,13 +261,13 @@
                                     </template>
                                 </div>
                             @endif
-                            <button type="button" class="btn-primary" @click="startCard()" x-text="posTerminals.length > 1 ? `Riprova su ${terminalName}` : 'Riprova'"></button>
+                            <button type="button" class="btn-primary" @click="startCard(payment.amount)" x-text="posTerminals.length > 1 ? `Riprova su ${terminalName}` : 'Riprova'"></button>
                             <button type="button" class="btn-light" @click="manualCard()">Incassa digitando l'importo sul POS</button>
                             <p class="text-xs text-stone-500">Prima di incassare a mano controlla che sul POS non sia già comparso l'importo, per non far pagare due volte il cliente.</p>
-                            <button type="button" class="btn-light" @click="modal = null; busy = false">Torna alla vendita</button>
+                            <button type="button" class="btn-light" @click="backToSale()" x-text="sale.paid_cents ? 'Torna al pagamento diviso' : 'Torna alla vendita'"></button>
                         </div>
                         <div class="mt-5" x-show="payment.state === 'cancelled'">
-                            <button type="button" class="btn-primary w-full" @click="modal = null">Torna alla vendita</button>
+                            <button type="button" class="btn-primary w-full" @click="backToSale()" x-text="sale.paid_cents ? 'Paga il resto' : 'Torna alla vendita'"></button>
                         </div>
 
                         @if ($posDriver === 'fake')
@@ -285,14 +288,67 @@
                 <template x-if="modal === 'pos'">
                     <div class="text-center">
                         <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Pagamento con carta / bancomat</div>
-                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(sale.total_cents)"></div>
+                        <div class="mt-1 text-4xl font-bold tabular-nums" x-text="euro(payment?.amount ?? sale.total_cents)"></div>
                         {{-- POS non collegato a Orio ne' alla stampante fiscale: l'importo si digita a mano sul POS.
                              Se in futuro il pagamento carta della stampante viene legato al POS (comandi [P]/[E]
                              del protocollo G100) questo passaggio va tolto, altrimenti il cliente paga due volte. --}}
-                        <p class="mt-4 rounded-xl bg-amber-50 p-3 text-amber-800">Digita <strong class="tabular-nums" x-text="euro(sale.total_cents)"></strong> sul POS e fai avvicinare la carta al cliente.<br><strong>Conferma solo dopo l'esito positivo sul POS:</strong> lo scontrino parte quando premi «Pagamento riuscito».</p>
+                        <p class="mt-4 rounded-xl bg-amber-50 p-3 text-amber-800">Digita <strong class="tabular-nums" x-text="euro(payment?.amount ?? sale.total_cents)"></strong> sul POS e fai avvicinare la carta al cliente.<br><strong>Conferma solo dopo l'esito positivo sul POS:</strong> lo scontrino parte quando premi «Pagamento riuscito».</p>
                         <div class="mt-5 grid gap-2">
                             <button type="button" class="btn-primary py-4 text-lg" @click="confirmPos(true)">Pagamento riuscito</button>
                             <button type="button" class="btn-light" @click="confirmPos(false)">Carta rifiutata / annulla</button>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="modal === 'split'">
+                    <div>
+                        <div class="text-sm font-semibold uppercase tracking-wide text-stone-500">Pagamento diviso</div>
+                        <div class="mt-1 flex items-baseline justify-between gap-3">
+                            <span class="text-stone-500">Totale</span>
+                            <span class="text-2xl font-bold tabular-nums" x-text="euro(sale ? sale.total_cents : totalCents)"></span>
+                        </div>
+                        <ul class="mt-3 space-y-1 text-sm" x-show="parts.length">
+                            <template x-for="part in parts" :key="part.id">
+                                <li class="flex justify-between rounded-lg bg-brand-50 px-3 py-2 text-brand-900">
+                                    <span x-text="`✓ ${part.label}`"></span><span class="font-semibold tabular-nums" x-text="euro(part.cents)"></span>
+                                </li>
+                            </template>
+                        </ul>
+                        <div class="mt-3 flex items-baseline justify-between gap-3 rounded-xl bg-amber-50 px-3 py-2 text-amber-900">
+                            <span class="font-semibold">Resta da pagare</span>
+                            <span class="text-2xl font-bold tabular-nums" x-text="euro(remainingCents)"></span>
+                        </div>
+
+                        <label class="mt-5 block text-sm font-semibold text-stone-700" for="split-amount">Importo di questa parte</label>
+                        <div class="mt-1 flex items-center gap-2">
+                            <input id="split-amount" x-ref="splitAmount" x-model="splitAmount" inputmode="decimal" autocomplete="off"
+                                   class="input flex-1 text-right text-2xl font-bold tabular-nums" placeholder="0,00" @keydown.enter.prevent>
+                            <span class="text-xl font-semibold text-stone-500">€</span>
+                        </div>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <button type="button" class="rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-stone-300 text-stone-600"
+                                    @click="splitAmount = (Math.ceil(remainingCents / 2) / 100).toFixed(2).replace('.', ',')">Metà</button>
+                            <button type="button" class="rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-stone-300 text-stone-600"
+                                    @click="splitAmount = (remainingCents / 100).toFixed(2).replace('.', ',')">Tutto il resto</button>
+                        </div>
+                        <p x-show="splitError" x-text="splitError" class="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700"></p>
+
+                        <div class="mt-5 grid grid-cols-2 gap-2">
+                            <button type="button" class="btn-primary py-4" :disabled="sending" @click="paySplit('contanti')">Contanti</button>
+                            <button type="button" class="btn-light py-4" :disabled="sending" @click="paySplit('pos')">Carta</button>
+                        </div>
+                        @if (count($posTerminals) > 1)
+                            <div class="mt-3 flex flex-wrap justify-center gap-2">
+                                <template x-for="t in posTerminals" :key="t.id">
+                                    <button type="button" class="rounded-full px-3 py-1.5 text-sm font-semibold ring-1" x-text="t.name"
+                                            :class="terminal === t.id ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'ring-stone-300 text-stone-600'" @click="chooseTerminal(t.id)"></button>
+                                </template>
+                            </div>
+                        @endif
+
+                        <div class="mt-5 border-t border-stone-200 pt-4 text-center">
+                            <button type="button" x-show="!parts.length" class="text-sm font-semibold text-stone-500" @click="modal = null; busy = false">Torna alla vendita</button>
+                            <button type="button" x-show="parts.length" class="text-sm font-semibold text-red-700" :disabled="sending" @click="voidPartial()">Annulla la vendita e rimborsa quanto pagato</button>
                         </div>
                     </div>
                 </template>

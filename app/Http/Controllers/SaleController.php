@@ -42,8 +42,12 @@ class SaleController extends Controller
             return null;
         }
 
+        $pending = $sale->status === 'in_pagamento' ? $sale->pendingPayment() : null;
+
         return [
             'sale' => $sale->only(['id', 'status', 'total_cents', 'paid_cents', 'payment_method', 'pos_terminal_id', 'document_type']),
+            'parts' => $sale->paymentParts(),
+            'pending' => $pending ? ['method' => $pending->method, 'amount' => $pending->amount_cents, 'terminal' => $pending->terminal_id] : null,
             'document_type' => $sale->document_type,
             'customer' => $sale->customer,
             'rows' => $sale->items->map(fn ($item) => array_merge(
@@ -87,6 +91,11 @@ class SaleController extends Controller
             return response()->json(['draft_id' => null]);
         }
 
+        // Con una parte gia' pagata il carrello e' bloccato: si paga il resto o si annulla
+        if ($draft?->paid_cents) {
+            return response()->json(['draft_id' => $draft->id, 'total_cents' => $draft->total_cents]);
+        }
+
         $draft ??= Sale::create(['user_id' => $request->user()->id, 'document_type' => $data['document_type']]);
         $this->fillSale($draft, $data);
 
@@ -108,7 +117,7 @@ class SaleController extends Controller
 
     public function show(Sale $sale)
     {
-        $sale->load('items', 'customer', 'user', 'vneTransactions');
+        $sale->load('items', 'customer', 'user', 'vneTransactions', 'payments');
 
         return view('sales.show', [
             'sale' => $sale,
@@ -137,8 +146,14 @@ class SaleController extends Controller
             return response()->json(['message' => $block], 423);
         }
 
-        $sale = $this->findDraft($request, $data['draft_id'] ?? null)
-            ?? Sale::create(['user_id' => $request->user()->id, 'document_type' => $data['document_type']]);
+        $sale = $this->findDraft($request, $data['draft_id'] ?? null);
+
+        // Resto di un pagamento a parti: le righe sono quelle gia' in parte pagate
+        if ($sale?->paid_cents) {
+            return response()->json(['sale' => $sale, 'parts' => $sale->paymentParts()]);
+        }
+
+        $sale ??= Sale::create(['user_id' => $request->user()->id, 'document_type' => $data['document_type']]);
         $this->fillSale($sale, $data);
 
         if ($sale->total_cents <= 0) {
@@ -211,6 +226,8 @@ class SaleController extends Controller
         abort_if(in_array($sale->status, ['scontrinata', 'fatturata', 'in_pagamento'], true), 422, 'Vendita non annullabile in questo stato.');
         // Pagata col SmartPOS: l'annullo passa dal rimborso sulla carta (SaleVoidController)
         abort_if($sale->status === 'pagata' && $sale->pos_transaction_id, 422, 'Usa «Annulla e rimborsa»: il pagamento con carta va rimborsato.');
+        // Bozza con una parte gia' incassata: si annulla con la restituzione (SaleVoidController)
+        abort_if($sale->status === 'bozza' && $sale->paid_cents > 0, 422, 'Usa «Annulla e rimborsa»: una parte è già stata pagata.');
 
         $sale->update(['status' => 'annullata', 'closed_at' => now()]);
 

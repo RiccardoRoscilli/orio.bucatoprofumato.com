@@ -38,13 +38,15 @@ class AxonG100
 
         // 5/numero pagamento/importo/ - la tipologia (contanti o elettronico) e' quella
         // programmata sul numero di pagamento. Importo esatto: il resto lo da' la VNE.
-        $electronic = in_array($sale->payment_method, ['carta', 'pos'], true);
-        $commands[] = self::packet([
-            '5',
-            (string) config($electronic ? 'orio.fiscal_printer.payment_card' : 'orio.fiscal_printer.payment_cash'),
-            self::money($sale->paid_cents ?: $sale->total_cents),
-            '', '', '',
-        ]);
+        // Pagamento a parti: una riga per tipo; il documento si chiude quando si arriva al totale.
+        foreach (self::payments($sale) as $type => $cents) {
+            $commands[] = self::packet([
+                '5',
+                (string) config($type === 'pos' ? 'orio.fiscal_printer.payment_card' : 'orio.fiscal_printer.payment_cash'),
+                self::money($cents),
+                '', '', '',
+            ]);
+        }
 
         return $commands;
     }
@@ -74,6 +76,18 @@ class AxonG100
     public static function abortOpenDocument(): string
     {
         return self::packet(['+', '0']);
+    }
+
+    /**
+     * Importi per tipo di pagamento, contanti prima: con un pagamento solo e' l'intero incassato.
+     *
+     * @return array<string, int>
+     */
+    public static function payments(Sale $sale): array
+    {
+        $byType = array_filter($sale->paidByType());
+
+        return $byType ?: [in_array($sale->payment_method, ['carta', 'pos'], true) ? 'pos' : 'contanti' => $sale->total_cents];
     }
 
     public static function department(int $vatRate): string

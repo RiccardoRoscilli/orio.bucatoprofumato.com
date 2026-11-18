@@ -67,7 +67,14 @@
                 <div class="flex justify-between"><span class="text-stone-500">Data</span><span>{{ $sale->created_at->format('d/m/Y H:i') }}</span></div>
                 <div class="flex justify-between"><span class="text-stone-500">Operatore</span><span>{{ $sale->user->name }}</span></div>
                 <div class="flex justify-between"><span class="text-stone-500">Pagamento</span><span>{{ \App\Models\Sale::PAYMENT_METHODS[$sale->payment_method] ?? '—' }}</span></div>
-                @if ($sale->pos_terminal_id)
+                @php
+                    $parts = $sale->payments->where('status', 'pagato');
+                @endphp
+                @if ($parts->count() > 1)
+                    @foreach ($parts as $part)
+                        <div class="flex justify-between pl-3"><span class="text-stone-500">{{ $part->label() }}{{ $part->refunded_at ? ' · rimborsato' : '' }}</span><span>{{ euro($part->paid_cents) }}</span></div>
+                    @endforeach
+                @elseif ($sale->pos_terminal_id)
                     <div class="flex justify-between"><span class="text-stone-500">Terminale</span><span>{{ collect(\App\Services\Pos\CloudPos::terminalChoices())->firstWhere('id', $sale->pos_terminal_id)['name'] ?? '' }} · TID {{ $sale->pos_terminal_id }}</span></div>
                 @endif
                 <div class="flex justify-between"><span class="text-stone-500">Incassato</span><span class="font-semibold">{{ euro($sale->paid_cents) }}</span></div>
@@ -116,7 +123,11 @@
                 @endif
                 @if (\App\Services\SaleVoidService::canVoid($sale))
                     @php
-                        $cardRefund = $sale->payment_method === 'pos' && $sale->pos_transaction_id && ! $sale->refunded_at;
+                        $voidService = app(\App\Services\SaleVoidService::class);
+                        $refunds = $voidService->cardRefunds($sale);
+                        $cardRefund = $refunds->isNotEmpty();
+                        $paidByType = $sale->paidByType();
+                        $manualCard = $paidByType['pos'] - (int) $refunds->sum('paid_cents') - (int) $sale->payments->where('status', 'pagato')->whereNotNull('refunded_at')->sum('paid_cents');
                         $voidLabel = match (true) {
                             (bool) $sale->receipt_voided_at => 'Riprova il rimborso sulla carta',
                             $sale->status === 'scontrinata' && $cardRefund => 'Annulla scontrino e rimborsa la carta',
@@ -126,10 +137,10 @@
                         };
                         $voidItems = array_values(array_filter([
                             $sale->status === 'scontrinata' && ! $sale->receipt_voided_at ? ['label' => 'Annullo dello scontrino', 'value' => $sale->receipt_number] : null,
-                            $cardRefund ? ['label' => 'Rimborso sulla carta', 'value' => euro($sale->paid_cents)] : null,
-                            ! $cardRefund && $sale->payment_method === 'pos' ? ['label' => 'Da rimborsare a mano dal POS', 'value' => euro($sale->paid_cents)] : null,
-                            $sale->payment_method === 'contanti' ? ['label' => 'Contanti da restituire', 'value' => euro($sale->paid_cents)] : null,
-                            ['label' => 'Magazzino', 'value' => 'la merce rientra'],
+                            $cardRefund ? ['label' => 'Rimborso sulla carta', 'value' => $refunds->map(fn ($p) => euro($p->paid_cents))->implode(' + ')] : null,
+                            $manualCard > 0 && ! $sale->refunded_at ? ['label' => 'Da rimborsare a mano dal POS', 'value' => euro($manualCard)] : null,
+                            $paidByType['contanti'] ? ['label' => 'Contanti da restituire', 'value' => euro($paidByType['contanti'])] : null,
+                            $sale->stock_unloaded_at ? ['label' => 'Magazzino', 'value' => 'la merce rientra'] : null,
                         ]));
                     @endphp
                     @if ($sale->receipt_voided_at)
@@ -142,7 +153,7 @@
                                         .then((r) => { if (r.state === 'done') { location.reload(); } else { msg = r.message; busy = false; } })
                                         .catch((e) => { msg = e.response?.data?.message ?? e.message; busy = false; })">{{ $voidLabel }}</button>
                 @endif
-                @if ($sale->status === 'bozza')
+                @if ($sale->status === 'bozza' && ! $sale->paid_cents)
                     <form method="POST" action="{{ route('sales.cancel', $sale) }}" data-confirm="Annullare la vendita?" data-confirm-label="Annulla vendita" data-confirm-danger>
                         @csrf
                         <button class="btn-light w-full text-red-700">Annulla vendita</button>

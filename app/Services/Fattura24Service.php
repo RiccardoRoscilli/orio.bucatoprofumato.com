@@ -54,7 +54,7 @@ class Fattura24Service
         $document->addChild('TotalWithoutTax', $this->money($withoutTax));
         $document->addChild('VatAmount', $this->money($gross - $withoutTax, 4));
         $document->addChild('Total', $this->money($gross, 4));
-        $document->addChild('PaymentMethodName', $sale->payment_method === 'contanti' ? 'Contanti' : 'Carta');
+        $document->addChild('PaymentMethodName', match ($sale->payment_method) { 'contanti' => 'Contanti', 'misto' => 'Contanti e carta', default => 'Carta' });
         $document->addChild('PaymentMethodDescription', Sale::PAYMENT_METHODS[$sale->payment_method] ?? '');
         $document->addChild('SendEmail', 'false');
 

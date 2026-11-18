@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { emitReceipt } from './fiscal/receipt.js';
+import { voidSale } from './fiscal/void.js';
+import { askConfirm } from './confirm';
 
 const euro = (cents) => (cents / 100).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 
@@ -10,6 +12,9 @@ const nextKey = () => `r${++rowSeq}`;
 const fmtQty = (qty) => (Math.round(qty * 1000) / 1000).toLocaleString('it-IT');
 
 const parsePrice = (value) => parseFloat(String(value).replace(',', '.')) || 0;
+
+// "50" / "49,90" -> 4990 centesimi
+const toCents = (value) => Math.round(parsePrice(value) * 100);
 
 const sounds = {
     success: new Audio('/sounds/success.mp3'),
@@ -70,7 +75,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
     busy: false,
 
     // Finestra di incasso / esito
-    modal: null, // null | 'payment' (VNE) | 'card' (POS collegato) | 'pos' (POS a mano) | 'done'
+    modal: null, // null | 'payment' (VNE) | 'card' (POS collegato) | 'pos' (POS a mano) | 'split' (a parti) | 'done'
     posDriver,
     // Terminali collegati (SmartPOS, telefoni Tap to Pay): l'ultimo scelto resta per la postazione
     posTerminals,
@@ -82,8 +87,18 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
     result: null,
     pollTimer: null,
 
+    // Pagamento a parti (due carte, carta + contanti): parti gia' pagate e importo della prossima
+    parts: [],
+    splitAmount: '',
+    splitError: null,
+    sending: false,
+
     euro,
     fmtQty,
+
+    get remainingCents() {
+        return this.sale ? Math.max(0, this.sale.total_cents - (this.sale.paid_cents || 0)) : this.totalCents;
+    },
 
     get totalCents() {
         return this.rows.reduce((sum, r) => sum + this.lineCents(r), 0);
@@ -125,13 +140,22 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
         if (state.customer) this.selectCustomer(state.customer);
         this.draftId = state.sale.id;
 
+        this.parts = state.parts ?? [];
+
         if (state.sale.status === 'in_pagamento') {
             this.sale = state.sale;
             this.busy = true;
-            this.payment = { state: 'pending', method: state.sale.payment_method, details: { amount: state.sale.total_cents, inserted: 0, rest: 0 } };
-            this.modal = state.sale.payment_method === 'pos' ? 'card' : 'payment';
-            if (state.sale.pos_terminal_id) this.terminal = state.sale.pos_terminal_id;
+            const method = state.pending?.method ?? state.sale.payment_method;
+            const amount = state.pending?.amount ?? state.sale.total_cents;
+            this.payment = { state: 'pending', method, amount, details: { amount, inserted: 0, rest: 0 } };
+            this.modal = method === 'pos' ? 'card' : 'payment';
+            if (state.pending?.terminal ?? state.sale.pos_terminal_id) this.terminal = state.pending?.terminal ?? state.sale.pos_terminal_id;
             this.poll();
+        } else if (state.sale.status === 'bozza' && state.sale.paid_cents > 0) {
+            // Pagamento a parti interrotto: il carrello resta bloccato, si paga il resto
+            this.sale = state.sale;
+            this.busy = true;
+            this.openSplit();
         } else if (state.sale.status === 'pagata') {
             this.sale = state.sale;
             this.busy = true;
@@ -347,9 +371,13 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
         this.vat = '';
     },
 
-    async pay(method) {
+    // amount: importo di una parte (pagamento diviso); senza, tutto il resto
+    async pay(method, amount = null) {
+        if (this.sending) return;
         this.error = null;
+        this.splitError = null;
         this.busy = true;
+        this.sending = true;
         await this.flushSave();
         try {
             const { data } = await axios.post('/vendite', {
@@ -367,31 +395,116 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
             });
             this.sale = data.sale;
             this.draftId = data.sale.id;
+            if (data.parts) this.parts = data.parts;
+            amount = amount ?? this.remainingCents;
 
             // Carta con POS non collegato: si aspetta che l'operatore confermi l'esito
             if (method === 'pos' && this.posDriver === 'manual') {
+                this.payment = { state: 'pending', method: 'pos', amount };
                 this.modal = 'pos';
                 return;
             }
             if (method === 'pos') {
-                await this.startCard();
+                await this.startCard(amount);
                 return;
             }
 
-            const start = await axios.post(`/vendite/${this.sale.id}/pagamento`, { method });
-            if (start.data.state === 'completed') {
-                await this.emitDocument();
-                return;
-            }
+            const start = await axios.post(`/vendite/${this.sale.id}/pagamento`, { method, amount });
+            if (await this.afterPart(start.data)) return;
 
-            this.payment = { state: 'pending', method, details: { amount: this.sale.total_cents, inserted: 0, rest: 0 } };
+            this.payment = { state: 'pending', method, amount, details: { amount, inserted: 0, rest: 0 } };
             this.scenario = 'completed';
             this.cancelMessage = null;
             this.modal = 'payment';
             this.poll();
         } catch (e) {
-            this.error = firstError(e);
-            this.busy = false;
+            const message = firstError(e);
+            if (this.modal === 'split' || this.sale?.paid_cents) {
+                if (this.modal !== 'split') this.openSplit();
+                this.splitError = message;
+                this.busy = !!this.sale?.paid_cents;
+            } else {
+                this.error = message;
+                this.busy = false;
+            }
+        } finally {
+            this.sending = false;
+        }
+    },
+
+    /**
+     * Esito di una parte: vendita tutta pagata -> documento; resto ancora da pagare -> finestra
+     * del pagamento diviso. Ritorna true se ha gestito lui il seguito.
+     */
+    async afterPart(data) {
+        if (data.sale) this.sale = { ...this.sale, ...data.sale };
+        if (data.parts) this.parts = data.parts;
+        if (data.state === 'completed') {
+            await this.emitDocument();
+            return true;
+        }
+        if (data.state === 'part_completed') {
+            clearTimeout(this.pollTimer);
+            this.openSplit();
+            return true;
+        }
+        return false;
+    },
+
+    // Finestra del pagamento diviso: importo della prossima parte (proposto: il resto)
+    openSplit() {
+        this.error = null;
+        this.splitError = null;
+        this.splitAmount = this.sale?.paid_cents ? (this.remainingCents / 100).toFixed(2).replace('.', ',') : '';
+        this.modal = 'split';
+        this.$nextTick(() => this.$refs.splitAmount?.select());
+    },
+
+    paySplit(method) {
+        const cents = toCents(this.splitAmount);
+        if (cents <= 0) {
+            this.splitError = 'Scrivi l\'importo di questa parte.';
+            return;
+        }
+        if (cents > this.remainingCents) {
+            this.splitError = `L'importo supera il resto da pagare (${euro(this.remainingCents)}).`;
+            return;
+        }
+        this.pay(method, cents);
+    },
+
+    // Torna dalla finestra di un pagamento finito male: al carrello, o al resto se una parte e' pagata
+    backToSale() {
+        if (this.sale?.paid_cents) {
+            this.openSplit();
+            return;
+        }
+        this.modal = null;
+        this.busy = false;
+    },
+
+    // Pagamento diviso interrotto: si annulla tutto, rimborsando le carte e restituendo i contanti
+    async voidPartial() {
+        const ok = await askConfirm({
+            title: 'Annullare la vendita?',
+            items: this.parts.map((p) => ({ label: p.card ? `${p.label}: rimborso sulla carta` : 'Contanti da restituire', value: euro(p.cents) })),
+            warning: 'Non si può tornare indietro.',
+            confirmLabel: 'Annulla e rimborsa',
+            danger: true,
+        });
+        if (!ok) return;
+        this.splitError = null;
+        try {
+            const result = await voidSale(this.sale.id);
+            if (result.state !== 'done') {
+                this.splitError = result.message;
+                return;
+            }
+            this.draftId = null;
+            this.newSale();
+            this.error = result.message;
+        } catch (e) {
+            this.splitError = firstError(e);
         }
     },
 
@@ -409,17 +522,18 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
     },
 
     // POS collegato: l'importo va al terminale e Orio aspetta l'esito
-    async startCard() {
-        this.payment = { state: 'sending', method: 'pos' };
+    async startCard(amount = null) {
+        amount = amount ?? this.payment?.amount ?? this.remainingCents;
+        this.payment = { state: 'sending', method: 'pos', amount };
         this.scenario = 'completed';
         this.cancelMessage = null;
         this.modal = 'card';
         try {
-            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos', terminal: this.terminal });
+            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos', terminal: this.terminal, amount });
             this.payment.state = 'pending';
             this.poll();
         } catch (e) {
-            this.payment = { state: 'unreachable', method: 'pos', message: firstError(e) };
+            this.payment = { state: 'unreachable', method: 'pos', amount, message: firstError(e) };
         }
     },
 
@@ -432,18 +546,16 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
     // Esito del pagamento con carta riferito dall'operatore
     async confirmPos(paid) {
         if (!paid) {
-            this.modal = null;
-            this.busy = false;
+            this.backToSale();
             this.error = 'Pagamento con carta non riuscito: la vendita è ancora aperta.';
             return;
         }
         try {
-            await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos', manual: true });
-            await this.emitDocument();
+            const { data } = await axios.post(`/vendite/${this.sale.id}/pagamento`, { method: 'pos', manual: true, amount: this.payment?.amount });
+            if (!(await this.afterPart(data))) await this.emitDocument();
         } catch (e) {
-            this.modal = null;
+            this.backToSale();
             this.error = firstError(e);
-            this.busy = false;
         }
     },
 
@@ -454,12 +566,9 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
                 const { data } = await axios.get(`/vendite/${this.sale.id}/pagamento`);
                 this.payment = { ...this.payment, ...data };
 
-                if (data.state === 'completed') {
-                    await this.emitDocument();
-                    return;
-                }
+                if (await this.afterPart(data)) return;
                 if (['cancelled', 'partial'].includes(data.state)) {
-                    this.busy = false;
+                    this.busy = !!this.sale?.paid_cents;
                     return;
                 }
             } catch (e) {
@@ -518,6 +627,9 @@ export default (initial = null, posDriver = 'manual', posTerminals = []) => ({
         this.modal = null;
         this.sale = null;
         this.payment = null;
+        this.parts = [];
+        this.splitAmount = '';
+        this.splitError = null;
         this.result = null;
         this.error = null;
         this.busy = false;

@@ -126,18 +126,18 @@ abstract class CloudPos
         return ($this->terminal ?? $this->forTerminal(null)->terminal)['api_key'] ?? null;
     }
 
-    /** Manda l'importo della vendita al terminale. Ritorna l'order_id da seguire. */
-    public function start(Sale $sale): string
+    /** Manda al terminale l'importo (tutta la vendita o una parte). Ritorna l'order_id da seguire. */
+    public function start(Sale $sale, ?int $amountCents = null): string
     {
         // Un order_id nuovo a ogni tentativo: dopo un annullo la stessa vendita si riprova
-        $orderId = 'orio-' . $sale->id . '-' . now()->format('YmdHis');
+        $orderId = 'orio-' . $sale->id . '-' . now()->format('YmdHisv');
         $body = [
             'type' => 'redirect',
             'order_id' => $orderId,
             'gateway' => '',
             'currency' => 'EUR',
-            'amount' => $sale->total_cents,
-            'description' => 'Orio vendita #' . $sale->id,
+            'amount' => $amountCents ?? $sale->total_cents,
+            'description' => 'Orio vendita #' . $sale->id . ($amountCents && $amountCents < $sale->total_cents ? ' (parte)' : ''),
             'gateway_info' => ['terminal_id' => (string) $this->terminalId()],
         ];
         if ($url = config('orio.pos.notification_url')) {

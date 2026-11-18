@@ -29,12 +29,14 @@
             $vatTotal = $sale->items->sum(fn ($i) => $i->lineTotalCents() - $i->lineTotalCents() / (1 + $i->vat_rate / 100));
         @endphp
         <div class="flex justify-between"><span>di cui IVA</span><span>{{ number_format($vatTotal / 100, 2, ',', '.') }}</span></div>
-        @if (in_array($sale->payment_method, ['carta', 'pos'], true))
-            <div class="flex justify-between"><span>Pagamento elettronico</span><span>{{ number_format($sale->paid_cents / 100, 2, ',', '.') }}</span></div>
-        @else
-            <div class="flex justify-between"><span>Pagamento contante</span><span>{{ number_format(($vne['inserted'] ?? $sale->paid_cents) / 100, 2, ',', '.') }}</span></div>
-            <div class="flex justify-between"><span>Resto</span><span>{{ number_format(($vne['rest'] ?? 0) / 100, 2, ',', '.') }}</span></div>
-        @endif
+        @foreach (\App\Services\FiscalPrinter\AxonG100::payments($sale) as $type => $cents)
+            @if ($type === 'pos')
+                <div class="flex justify-between"><span>Pagamento elettronico</span><span>{{ number_format($cents / 100, 2, ',', '.') }}</span></div>
+            @else
+                <div class="flex justify-between"><span>Pagamento contante</span><span>{{ number_format(($vne['inserted'] ?? $cents) / 100, 2, ',', '.') }}</span></div>
+                <div class="flex justify-between"><span>Resto</span><span>{{ number_format(($vne['rest'] ?? 0) / 100, 2, ',', '.') }}</span></div>
+            @endif
+        @endforeach
         <div class="my-2 border-t border-dashed border-stone-400"></div>
         <div class="text-center">
             <div>{{ $sale->closed_at?->format('d-m-Y H:i') }}</div>

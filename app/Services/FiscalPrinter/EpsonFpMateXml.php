@@ -29,15 +29,17 @@ class EpsonFpMateXml
             );
         }
 
-        // 0 = contanti, 2 = pagamento elettronico
-        $electronic = in_array($sale->payment_method, ['carta', 'pos'], true);
-        $lines[] = sprintf(
-            '<printRecTotal operator="1" description="%s" payment="%s" paymentType="%d" index="%d" justification="1" />',
-            $electronic ? 'PAGAMENTO ELETTRONICO' : 'CONTANTI',
-            self::money($sale->paid_cents ?: $sale->total_cents),
-            $electronic ? 2 : 0,
-            $electronic ? 1 : 0,
-        );
+        // 0 = contanti, 2 = pagamento elettronico; una riga per tipo nel pagamento a parti
+        foreach (AxonG100::payments($sale) as $type => $cents) {
+            $electronic = $type === 'pos';
+            $lines[] = sprintf(
+                '<printRecTotal operator="1" description="%s" payment="%s" paymentType="%d" index="%d" justification="1" />',
+                $electronic ? 'PAGAMENTO ELETTRONICO' : 'CONTANTI',
+                self::money($cents),
+                $electronic ? 2 : 0,
+                $electronic ? 1 : 0,
+            );
+        }
         $lines[] = '<endFiscalReceipt operator="1" />';
 
         return '<?xml version="1.0" encoding="utf-8"?>' . "\n"

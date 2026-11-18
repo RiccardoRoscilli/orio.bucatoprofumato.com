@@ -135,15 +135,17 @@ class ClosureController extends Controller
     /** @return array<string, int> incassi del periodo per metodo di pagamento, in centesimi */
     private function totals(?Carbon $from, Carbon $to): array
     {
-        $sales = Sale::whereIn('status', ['pagata', 'scontrinata', 'fatturata'])
+        $sales = Sale::with('payments')->whereIn('status', ['pagata', 'scontrinata', 'fatturata'])
             ->when($from, fn ($q) => $q->where('paid_at', '>', $from))
             ->where('paid_at', '<=', $to)
             ->get();
+        // Pagamenti a parti: ogni vendita conta per contanti e carta secondo le sue parti
+        $byType = $sales->map(fn (Sale $sale) => $sale->paidByType());
 
         return [
-            'contanti' => (int) $sales->where('payment_method', 'contanti')->sum('paid_cents'),
-            'carta' => (int) $sales->where('payment_method', 'carta')->sum('paid_cents'),
-            'pos' => (int) $sales->where('payment_method', 'pos')->sum('paid_cents'),
+            'contanti' => (int) $byType->sum('contanti'),
+            'carta' => 0, // carta sulla VNE: non piu' usata, conteggiata con il POS
+            'pos' => (int) $byType->sum('pos'),
             'scontrini' => $sales->where('status', 'scontrinata')->count(),
             'fatture' => $sales->where('status', 'fatturata')->count(),
             'da_documentare' => $sales->where('status', 'pagata')->count(),

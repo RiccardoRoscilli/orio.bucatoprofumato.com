@@ -22,6 +22,7 @@ class Sale extends Model
         'contanti' => 'Contanti (VNE)',
         'carta' => 'Carta (VNE)', // non piu' usato: la VNE prende solo contanti
         'pos' => 'Carta / Bancomat (POS)',
+        'misto' => 'Contanti e carta',
     ];
 
     protected $fillable = [
@@ -73,6 +74,65 @@ class Sale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SalePayment::class);
+    }
+
+    /** Pagamento in corso (importo sul terminale o sulla VNE), se c'e'. */
+    public function pendingPayment(): ?SalePayment
+    {
+        return $this->payments()->where('status', 'in_corso')->latest('id')->first();
+    }
+
+    public function remainingCents(): int
+    {
+        return max(0, $this->total_cents - $this->paid_cents);
+    }
+
+    /**
+     * Ricalcola l'incassato dalle parti pagate: a totale raggiunto la vendita e' pagata,
+     * altrimenti resta in bozza con l'incassato parziale e si paga il resto.
+     */
+    public function settlePayments(): void
+    {
+        $paid = $this->payments()->where('status', 'pagato')->get();
+        $methods = $paid->map(fn (SalePayment $p) => $p->isCard() ? 'pos' : 'contanti')->unique();
+        $paidCents = (int) $paid->sum('paid_cents');
+
+        $this->update([
+            'paid_cents' => $paidCents,
+            'payment_method' => $methods->count() > 1 ? 'misto' : ($methods->first() ?? $this->payment_method),
+            'status' => $paidCents >= $this->total_cents ? 'pagata' : 'bozza',
+            'paid_at' => $paidCents >= $this->total_cents ? now() : null,
+        ]);
+    }
+
+    /** @return array{contanti:int, pos:int} incassato per tipo (per scontrino e chiusura) */
+    public function paidByType(): array
+    {
+        $paid = $this->payments->where('status', 'pagato');
+        if ($paid->isEmpty() && $this->paid_cents) {
+            // Vendita senza parti registrate (creata a mano o da dati vecchi)
+            $card = in_array($this->payment_method, ['pos', 'carta'], true);
+
+            return ['contanti' => $card ? 0 : $this->paid_cents, 'pos' => $card ? $this->paid_cents : 0];
+        }
+
+        return [
+            'contanti' => (int) $paid->reject(fn (SalePayment $p) => $p->isCard())->sum('paid_cents'),
+            'pos' => (int) $paid->filter(fn (SalePayment $p) => $p->isCard())->sum('paid_cents'),
+        ];
+    }
+
+    /** Parti pagate per la cassa: metodo, importo, terminale. */
+    public function paymentParts(): array
+    {
+        return $this->payments()->where('status', 'pagato')->orderBy('id')->get()
+            ->map(fn (SalePayment $p) => ['id' => $p->id, 'label' => $p->label(), 'cents' => $p->paid_cents, 'card' => $p->isCard()])
+            ->all();
     }
 
     public function vneTransactions(): HasMany

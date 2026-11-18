@@ -126,6 +126,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/chiusura', [ClosureController::class, 'index'])->name('closure');
     Route::post('/chiusura/fiscale', [ClosureController::class, 'fiscal'])->name('closure.fiscal');
     Route::post('/chiusura/fiscale/conferma', [ClosureController::class, 'fiscalConfirm'])->name('closure.fiscal.confirm');
+    Route::post('/chiusura/automatica', [ClosureController::class, 'autoStart'])->name('closure.auto');
+    Route::post('/chiusura/automatica/esito', [ClosureController::class, 'autoResult'])->name('closure.auto.result');
     Route::post('/chiusura/stato-cassa', [ClosureController::class, 'vneStatus'])->name('closure.vne-status');
     Route::post('/chiusura/{closure}/vne', [ClosureController::class, 'vne'])->name('closure.vne');
 });

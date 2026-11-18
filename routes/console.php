@@ -12,3 +12,5 @@ Schedule::command('products:sync')->dailyAt('03:00');
 
 // Se a fine serata ci sono scontrini non chiusi, avvisa via email (la chiusura fiscale scade alle 24)
 Schedule::command('closure:check')->dailyAt(config('orio.closure.alert_at'));
+// ...e di nuovo dopo la chiusura automatica del tablet, se non e' riuscita
+Schedule::command('closure:check')->dailyAt('23:57');

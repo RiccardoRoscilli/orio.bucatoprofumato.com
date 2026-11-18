@@ -23,6 +23,23 @@
             Il pulsante fa la <strong>chiusura fiscale della stampante RT</strong> (obbligatoria entro le 24, anche senza incassi) e poi la <strong>chiusura della cassa automatica</strong>.
         </p>
 
+        {{-- Chiusura automatica dal tablet abilitato --}}
+        <div class="mb-4 rounded-xl bg-white px-4 py-3 text-sm ring-1 ring-stone-200">
+            <div>
+                <span class="font-semibold">Chiusura automatica alle {{ config('orio.closure.auto_at') }}</span>
+                @if ($autoDevice)
+                    dal tablet abilitato ({{ $autoDevice->name }}), se a quell'ora non è già stata fatta: il tablet deve restare acceso con Orio aperto.
+                @else
+                    <span class="text-amber-800">— nessun tablet abilitato: abilitalo da Gestione → Badge, altrimenti la chiusura automatica non parte.</span>
+                @endif
+            </div>
+            @if ($autoLast)
+                <div class="mt-1 {{ $autoLast['ok'] ? 'text-brand-800' : 'text-red-700' }}">
+                    Ultima: {{ \Illuminate\Support\Carbon::parse($autoLast['at'])->format('d/m H:i') }} · {{ $autoLast['device'] }} · {{ $autoLast['message'] }}
+                </div>
+            @endif
+        </div>
+
         <div x-show="error" x-cloak class="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-red-50 px-4 py-3 text-red-700 ring-1 ring-red-200">
             <span class="mr-auto" x-text="error"></span>
             <button type="button" x-show="closureId" class="btn-light py-2" @click="closeVne()">Riprova chiusura cassa automatica</button>
@@ -77,7 +94,7 @@
                             $vneCash = $closure->vne_closed_at ? (int) ($closure->vne_data['total_payments'] ?? 0) : null;
                         @endphp
                         <tr>
-                            <td class="py-2">{{ $closure->created_at->format('d/m H:i') }}<div class="text-xs text-stone-500">{{ $closure->user->name }}{{ $closure->period_from ? ' · dal ' . $closure->period_from->format('d/m H:i') : '' }}</div></td>
+                            <td class="py-2">{{ $closure->created_at->format('d/m H:i') }}<div class="text-xs text-stone-500">{{ $closure->automatic ? 'Automatica · ' : '' }}{{ $closure->user->name }}{{ $closure->period_from ? ' · dal ' . $closure->period_from->format('d/m H:i') : '' }}</div></td>
                             <td class="py-2">
                                 @if ($closure->fiscal_closed_at)
                                     <span class="badge bg-brand-50 text-brand-700">Z {{ $closure->fiscal_z_number }}</span>

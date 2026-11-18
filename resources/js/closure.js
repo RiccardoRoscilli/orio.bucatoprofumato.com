@@ -4,6 +4,38 @@ import { askConfirm } from './confirm';
 
 const firstError = (e) => e.response?.data?.message ?? e.message ?? 'Errore imprevisto.';
 
+/** Report Z sulla stampante Epson (FPMate): ritorna il numero di chiusura. */
+async function printEpsonZ({ url, xml }) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/xml;charset=utf-8' }, body: xml });
+    const text = await res.text();
+    const doc = new DOMParser().parseFromString(text, 'text/xml');
+    const response = doc.getElementsByTagName('response')[0];
+    if (!response || response.getAttribute('success') !== 'true') {
+        throw new Error('la stampante ha rifiutato la chiusura (' + (response?.getAttribute('status') ?? text.slice(0, 120)) + ')');
+    }
+    return doc.getElementsByTagName('zRepNumber')[0]?.textContent ?? '?';
+}
+
+/**
+ * Chiusura fiscale RT dal browser della postazione (stampante sulla rete del negozio), registrata
+ * su Orio. Usata dal pulsante "Chiudi giornata" e dalla chiusura automatica delle 23.
+ */
+export async function fiscalClosure({ fiscalUrl, confirmUrl, automatic = false }) {
+    const { data } = await axios.post(fiscalUrl, { automatic });
+    if (data.driver === 'axon' || data.driver === 'epson') {
+        const zNumber = data.driver === 'axon' ? await axon.printZ(data) : await printEpsonZ(data);
+        return (await axios.post(confirmUrl, { z_number: zNumber, automatic })).data.closure;
+    }
+    return data.closure;
+}
+
+/** Chiusura della cassa automatica VNE per la chiusura indicata. */
+export async function vneClosure(vneUrl, closureId) {
+    await axios.post(vneUrl.replace('__ID__', closureId));
+}
+
+export { firstError };
+
 /**
  * Pulsante "Chiudi giornata": prima la chiusura fiscale RT (obbligatoria), poi la chiusura
  * della cassa automatica VNE. Se la VNE non risponde la chiusura fiscale resta valida e si
@@ -27,12 +59,7 @@ export default ({ fiscalUrl, confirmUrl, vneUrl, pendingVneId = null, summary = 
         this.error = null;
         this.step = 'fiscal';
         try {
-            const { data } = await axios.post(fiscalUrl);
-            let closure = data.closure;
-            if (data.driver === 'axon' || data.driver === 'epson') {
-                const zNumber = data.driver === 'axon' ? await axon.printZ(data) : await this.printZ(data);
-                closure = (await axios.post(confirmUrl, { z_number: zNumber })).data.closure;
-            }
+            const closure = await fiscalClosure({ fiscalUrl, confirmUrl });
             this.closureId = closure.id;
         } catch (e) {
             this.error = 'Chiusura fiscale non riuscita: ' + firstError(e);
@@ -46,7 +73,7 @@ export default ({ fiscalUrl, confirmUrl, vneUrl, pendingVneId = null, summary = 
         this.error = null;
         this.step = 'vne';
         try {
-            await axios.post(vneUrl.replace('__ID__', this.closureId));
+            await vneClosure(vneUrl, this.closureId);
             this.step = 'done';
             window.location.reload();
         } catch (e) {
@@ -55,14 +82,4 @@ export default ({ fiscalUrl, confirmUrl, vneUrl, pendingVneId = null, summary = 
         }
     },
 
-    async printZ({ url, xml }) {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/xml;charset=utf-8' }, body: xml });
-        const text = await res.text();
-        const doc = new DOMParser().parseFromString(text, 'text/xml');
-        const response = doc.getElementsByTagName('response')[0];
-        if (!response || response.getAttribute('success') !== 'true') {
-            throw new Error('la stampante ha rifiutato la chiusura (' + (response?.getAttribute('status') ?? text.slice(0, 120)) + ')');
-        }
-        return doc.getElementsByTagName('zRepNumber')[0]?.textContent ?? '?';
-    },
 });

@@ -66,6 +66,10 @@ return [
         'alert_at' => env('ORIO_CLOSURE_ALERT_AT', '21:00'),
         // Destinatari dell'email, separati da virgola (oltre agli admin con email)
         'alert_emails' => array_filter(array_map('trim', explode(',', (string) env('ORIO_CLOSURE_ALERT_EMAILS', '')))),
+        // Chiusura automatica dal tablet abilitato (quello delle presenze): parte da quest'ora e
+        // si ritenta fino all'ora limite se il tablet era bloccato o la stampante non rispondeva
+        'auto_at' => env('ORIO_CLOSURE_AUTO_AT', '23:00'),
+        'auto_until' => env('ORIO_CLOSURE_AUTO_UNTIL', '23:55'),
     ],
 
     'fattura24' => [

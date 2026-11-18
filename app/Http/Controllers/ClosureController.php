@@ -11,6 +11,8 @@ use App\Services\Vne\VneClient;
 use App\Services\Vne\VneException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Chiusura giornata in due passi, entrambi dal pulsante "Chiudi giornata":
@@ -38,7 +40,56 @@ class ClosureController extends Controller
             'overdueDay' => $closureStatus->overdueDay(),
             'pendingVne' => CashClosure::whereNotNull('fiscal_closed_at')->whereNull('vne_closed_at')->latest()->first(),
             'closures' => CashClosure::with('user')->latest()->limit(10)->get(),
+            'autoLast' => Cache::get(self::AUTO_LAST),
+            'autoDevice' => \App\Models\AttendanceDevice::whereNull('revoked_at')->latest('last_used_at')->first(),
         ]);
+    }
+
+    private const AUTO_LAST = 'closure.auto.last';
+    private const AUTO_LOCK = 'closure.auto.lock';
+
+    /** Finestra della chiusura automatica di oggi (es. 23:00-23:55). */
+    public static function autoWindow(): array
+    {
+        return [today()->setTimeFromTimeString(config('orio.closure.auto_at')), today()->setTimeFromTimeString(config('orio.closure.auto_until'))];
+    }
+
+    /**
+     * Il tablet chiede se deve fare la chiusura automatica: solo il dispositivo abilitato, solo nella
+     * finestra della sera, solo se oggi non e' gia' stata fatta. Uno solo per volta (piu' schede aperte).
+     */
+    public function autoStart(Request $request, ClosureStatus $closureStatus)
+    {
+        abort_unless(\App\Models\AttendanceDevice::fromRequest($request), 403, 'Dispositivo non abilitato.');
+        [$from, $until] = self::autoWindow();
+
+        if (! now()->between($from, $until)) {
+            return response()->json(['due' => false]);
+        }
+        // Fiscale fatta ma cassa automatica non chiusa: si ritenta solo quella
+        $vnePending = CashClosure::whereNotNull('fiscal_closed_at')->whereNull('vne_closed_at')->where('fiscal_closed_at', '>=', today())->latest('id')->value('id');
+        if ($closureStatus->fiscalClosedToday() && ! $vnePending) {
+            return response()->json(['due' => false]);
+        }
+        $due = Cache::add(self::AUTO_LOCK, true, now()->addMinutes(10));
+
+        return response()->json(['due' => $due, 'vne_only' => $due ? $vnePending : null]);
+    }
+
+    /** Esito della chiusura automatica, mostrato nella pagina Chiusura. */
+    public function autoResult(Request $request)
+    {
+        $data = $request->validate(['ok' => 'required|boolean', 'message' => 'nullable|string|max:500']);
+        $device = \App\Models\AttendanceDevice::fromRequest($request);
+        abort_unless($device, 403, 'Dispositivo non abilitato.');
+
+        Cache::forget(self::AUTO_LOCK);
+        Cache::forever(self::AUTO_LAST, ['at' => now()->toIso8601String(), 'ok' => $data['ok'], 'message' => $data['message'] ?? null, 'device' => $device->name]);
+        if (! $data['ok']) {
+            Log::warning('Chiusura automatica non riuscita', ['device' => $device->name, 'message' => $data['message'] ?? null]);
+        }
+
+        return response()->json(['saved' => true]);
     }
 
     /** Passo 1: chiusura fiscale. Simulata: registrata subito. Axon/Epson: comandi per il browser. */
@@ -119,6 +170,7 @@ class ClosureController extends Controller
 
         return CashClosure::create([
             'user_id' => $request->user()->id,
+            'automatic' => $request->boolean('automatic'),
             'day' => today(),
             'period_from' => $from,
             'fiscal_z_number' => $zNumber,

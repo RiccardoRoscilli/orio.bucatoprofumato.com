@@ -7,6 +7,14 @@
     <title>{{ $title ?? 'Cassa' }} · Orio</title>
     @auth
         <meta name="orio-auth" content="1">
+        {{-- Solo sul tablet abilitato: alle 23 fa da solo la chiusura della giornata --}}
+        @if (\App\Models\AttendanceDevice::fromRequest(request()))
+            <meta name="orio-auto-closure" content="{{ json_encode([
+                'at' => config('orio.closure.auto_at'), 'until' => config('orio.closure.auto_until'),
+                'startUrl' => route('closure.auto'), 'resultUrl' => route('closure.auto.result'),
+                'fiscalUrl' => route('closure.fiscal'), 'confirmUrl' => route('closure.fiscal.confirm'), 'vneUrl' => route('closure.vne', '__ID__'),
+            ]) }}">
+        @endif
     @endauth
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -75,7 +83,7 @@
                 $overdueDay = $closureStatus->overdueDay();
             @endphp
             @if ($overdueDay || $closureStatus->reminderDue())
-                <div class="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white">
+                <div data-closure-reminder class="mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white">
                     <span class="mr-auto">
                         @if ($overdueDay)
                             Manca la chiusura fiscale del {{ $overdueDay->format('d/m/Y') }}: gli scontrini sono bloccati finché non chiudi la giornata.

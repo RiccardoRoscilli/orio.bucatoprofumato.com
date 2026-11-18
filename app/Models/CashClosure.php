@@ -12,11 +12,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CashClosure extends Model
 {
     protected $fillable = [
-        'user_id', 'day', 'period_from', 'fiscal_z_number', 'fiscal_closed_at',
+        'user_id', 'automatic', 'day', 'period_from', 'fiscal_z_number', 'fiscal_closed_at',
         'vne_data', 'vne_closed_at', 'vne_error', 'orio_cash_cents', 'orio_card_cents', 'orio_pos_cents',
     ];
 
     protected $casts = [
+        'automatic' => 'boolean',
         'day' => 'date',
         'period_from' => 'datetime',
         'fiscal_closed_at' => 'datetime',

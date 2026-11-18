@@ -87,8 +87,10 @@ class Attendance extends Model
     }
 
     /** Uscite non bippate: Orio chiude i turni aperti e li segnala all'admin. */
-    public static function closeOpen(?\DateTimeInterface $at = null): int
+    /** Chiude in automatico i turni aperti; $exceptUserId resta aperto (esce subito dopo con il badge). */
+    public static function closeOpen(?\DateTimeInterface $at = null, ?int $exceptUserId = null): int
     {
-        return static::open()->update(['ended_at' => $at ?? now(), 'ended_auto' => true]);
+        return static::open()->when($exceptUserId, fn ($q) => $q->where('user_id', '!=', $exceptUserId))
+            ->update(['ended_at' => $at ?? now(), 'ended_auto' => true]);
     }
 }

@@ -165,8 +165,8 @@ class ClosureController extends Controller
         $from = $this->periodFrom();
         $totals = $this->totals($from, now());
 
-        // Chi non ha bippato l'uscita: turno chiuso adesso e segnalato nelle Presenze
-        \App\Models\Attendance::closeOpen();
+        // Chi non ha bippato l'uscita: turno chiuso adesso e segnalato nelle Presenze (non chi sta uscendo col badge)
+        \App\Models\Attendance::closeOpen(null, $request->integer('except_user') ?: null);
 
         return CashClosure::create([
             'user_id' => $request->user()->id,

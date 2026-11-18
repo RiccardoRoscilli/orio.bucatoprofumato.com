@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { askConfirm } from './confirm';
+import { fiscalClosure, vneClosure, firstError } from './closure';
 
 /**
  * Bip del badge da qualsiasi pagina di Orio, qualunque sia il campo attivo. Il lettore scrive
@@ -169,6 +170,26 @@ function askDeviceCode(code, message) {
     setTimeout(() => input.focus(), 50);
 }
 
+/** Chiusura giornata dall'uscita dell'ultima persona: fiscale RT poi cassa automatica. */
+async function closeDayBeforeLeaving(userId) {
+    show('<div class="text-lg font-semibold">Chiusura della giornata in corso…</div>');
+    let closure;
+    try {
+        closure = await fiscalClosure({ fiscalUrl: '/chiusura/fiscale', confirmUrl: '/chiusura/fiscale/conferma', exceptUser: userId });
+    } catch (e) {
+        error('Chiusura fiscale non riuscita: ' + firstError(e) + ' Il turno resta aperto: riprova o chiudi da «Chiusura».');
+        return false;
+    }
+    try {
+        await vneClosure('/chiusura/__ID__/vne', closure.id);
+    } catch (e) {
+        // La chiusura fiscale e' fatta: si puo' uscire, la cassa automatica si richiude da «Chiusura»
+        error('Chiusura fiscale fatta, ma la cassa automatica non ha risposto: ' + firstError(e) + ' Chiudila dalla pagina «Chiusura».');
+        await new Promise((r) => setTimeout(r, 4000));
+    }
+    return true;
+}
+
 /** Registra entrata o uscita per il badge (anche dalla cassa, se il lettore e' lento). */
 export async function handleBadge(code) {
     // La cassa puo' usare il bip per altro (scelta della cassiera)
@@ -178,7 +199,18 @@ export async function handleBadge(code) {
     busy = true;
     try {
         let { data } = await axios.post('/presenze/badge', { code });
-        if (data.action === 'ask_end') {
+        if (data.action === 'closure_required') {
+            hide();
+            const ok = await askConfirm({
+                title: 'Prima di uscire chiudi la giornata',
+                message: data.message,
+                items: [{ label: 'Entrata', value: data.user.since }],
+                confirmLabel: 'Chiudi giornata ed esci',
+            });
+            if (!ok) return;
+            if (!await closeDayBeforeLeaving(data.user.id)) return;
+            ({ data } = await axios.post('/presenze/badge', { code, end: true }));
+        } else if (data.action === 'ask_end') {
             hide();
             const ok = await askConfirm({
                 title: `${data.user.name}, chiudi il turno?`,

@@ -20,11 +20,11 @@ async function printEpsonZ({ url, xml }) {
  * Chiusura fiscale RT dal browser della postazione (stampante sulla rete del negozio), registrata
  * su Orio. Usata dal pulsante "Chiudi giornata" e dalla chiusura automatica delle 23.
  */
-export async function fiscalClosure({ fiscalUrl, confirmUrl, automatic = false }) {
-    const { data } = await axios.post(fiscalUrl, { automatic });
+export async function fiscalClosure({ fiscalUrl, confirmUrl, automatic = false, exceptUser = null }) {
+    const { data } = await axios.post(fiscalUrl, { automatic, except_user: exceptUser });
     if (data.driver === 'axon' || data.driver === 'epson') {
         const zNumber = data.driver === 'axon' ? await axon.printZ(data) : await printEpsonZ(data);
-        return (await axios.post(confirmUrl, { z_number: zNumber, automatic })).data.closure;
+        return (await axios.post(confirmUrl, { z_number: zNumber, automatic, except_user: exceptUser })).data.closure;
     }
     return data.closure;
 }

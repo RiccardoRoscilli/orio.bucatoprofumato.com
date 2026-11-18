@@ -73,6 +73,12 @@ class AttendanceController extends Controller
                 return $this->reply('selected', $person + ['since' => $open->started_at->format('H:i')]);
             }
 
+            // L'ultima persona in negozio non esce senza aver chiuso la giornata
+            if ($this->closureRequiredBeforeLeaving($user->id)) {
+                return $this->reply('closure_required', $person + ['since' => $open->started_at->format('H:i')],
+                    "{$user->name}, sei l'ultima in negozio: prima di uscire va fatta la chiusura della giornata.");
+            }
+
             if (! ($data['end'] ?? false)) {
                 return $this->reply('ask_end', $person + ['since' => $open->started_at->format('H:i')]);
             }
@@ -81,6 +87,23 @@ class AttendanceController extends Controller
 
             return $this->reply('ended', $person, "Arrivederci {$user->name}: uscita alle {$open->ended_at->format('H:i')}, turno di " . self::hours($open->minutes()) . '.');
         });
+    }
+
+    /**
+     * Ultima persona in negozio, la sera (dall'ora del promemoria di chiusura, es. 19:00: a pranzo
+     * si esce normalmente), con la chiusura fiscale da fare (mai fatta oggi, o scontrini dopo l'ultima).
+     */
+    private function closureRequiredBeforeLeaving(int $userId): bool
+    {
+        if (now()->lt(today()->setTimeFromTimeString(config('orio.closure.reminder_at')))) {
+            return false;
+        }
+        if (Attendance::open()->where('user_id', '!=', $userId)->exists()) {
+            return false;
+        }
+        $status = app(\App\Services\Closure\ClosureStatus::class);
+
+        return ! $status->fiscalClosedToday() || $status->openReceipts()->exists();
     }
 
     private function reply(string $action, array $user, ?string $message = null)

@@ -95,14 +95,45 @@ class AttendanceTest extends TestCase
         $this->actingAs($this->tablet)->postJson('/presenze/badge', ['code' => strtolower($code)])->assertOk()
             ->assertJson(['action' => 'started', 'present' => [['name' => 'Maria', 'since' => '09:02']]]);
 
+        // In negozio c'e' anche Giulia: Maria puo' uscire senza chiusura
+        $this->postJson('/presenze/badge', ['code' => $this->giveBadge($this->giulia)])->assertJson(['action' => 'started']);
+
         // Secondo bip: Orio chiede conferma prima di chiudere
         $this->travelTo(today()->setTime(13, 30));
         $this->postJson('/presenze/badge', ['code' => $code])->assertJson(['action' => 'ask_end']);
+        $this->assertSame(2, Attendance::open()->count());
+
+        $this->postJson('/presenze/badge', ['code' => $code, 'end' => true])->assertJson(['action' => 'ended', 'present' => [['name' => 'Giulia']]])
+            ->assertJsonPath('message', 'Arrivederci Maria: uscita alle 13:30, turno di 4 h 28.');
+        $this->assertSame(268, Attendance::where('user_id', $this->maria->id)->first()->minutes());
+    }
+
+    public function test_last_person_must_close_the_day_before_leaving(): void
+    {
+        $code = $this->giveBadge($this->maria);
+        $this->travelTo(today()->setTime(9, 0));
+        $this->actingAs($this->tablet)->postJson('/presenze/badge', ['code' => $code])->assertJson(['action' => 'started']);
+
+        // Pausa pranzo: anche se esce l'ultima, niente chiusura
+        config(['orio.closure.reminder_at' => '19:00']);
+        $this->travelTo(today()->setTime(13, 0));
+        $this->postJson('/presenze/badge', ['code' => $code])->assertJson(['action' => 'ask_end']);
+        $this->postJson('/presenze/badge', ['code' => $code, 'end' => true])->assertJson(['action' => 'ended']);
+        $this->travelTo(today()->setTime(14, 0));
+        $this->postJson('/presenze/badge', ['code' => $code])->assertJson(['action' => 'started']);
+
+        // La sera, ultima in negozio e chiusura da fare: niente uscita, nemmeno forzando
+        $this->travelTo(today()->setTime(19, 30));
+        $this->postJson('/presenze/badge', ['code' => $code])->assertJson(['action' => 'closure_required'])
+            ->assertJsonPath('message', "Maria, sei l'ultima in negozio: prima di uscire va fatta la chiusura della giornata.");
+        $this->postJson('/presenze/badge', ['code' => $code, 'end' => true])->assertJson(['action' => 'closure_required']);
         $this->assertSame(1, Attendance::open()->count());
 
-        $this->postJson('/presenze/badge', ['code' => $code, 'end' => true])->assertJson(['action' => 'ended', 'present' => []])
-            ->assertJsonPath('message', 'Arrivederci Maria: uscita alle 13:30, turno di 4 h 28.');
-        $this->assertSame(268, Attendance::first()->minutes());
+        // Chiusura dal bip (stampante simulata): il suo turno resta aperto, poi esce normalmente
+        $this->postJson('/chiusura/fiscale', ['except_user' => $this->maria->id])->assertOk();
+        $this->assertSame(1, Attendance::open()->count());
+        $this->postJson('/presenze/badge', ['code' => $code, 'end' => true])->assertJson(['action' => 'ended']);
+        $this->assertFalse(Attendance::latest('id')->first()->ended_auto);
     }
 
     public function test_sales_without_badges_work_as_before(): void

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class TeaOrderItem extends Model
 {
-    protected $fillable = ['tea_order_id', 'product_id', 'sku', 'name', 'qty', 'stock_at_order', 'price_cents', 'row_total_cents'];
+    protected $fillable = ['tea_order_id', 'product_id', 'sku', 'name', 'qty', 'boxes', 'stock_at_order', 'price_cents', 'row_total_cents'];
 
     protected $casts = ['stock_at_order' => 'float'];
 

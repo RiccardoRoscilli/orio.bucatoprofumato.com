@@ -104,7 +104,8 @@
                 <input type="hidden" name="mode" value="{{ $mode }}">
                 <h2 class="font-bold">Giacenze da Excel</h2>
                 <p class="text-xs text-stone-500">
-                    Scarica il modello, scrivi nella colonna «Quantità» i pezzi presenti in negozio e ricaricalo:
+                    Scarica il modello (lo stesso dei trasferimenti a bucato: sku, name, pcs_per_box, boxes, extra_pcs), scrivi in «boxes»
+                    le scatole intere e in «extra_pcs» i pezzi sfusi presenti in negozio, poi ricaricalo:
                     <strong>le giacenze vengono sostituite</strong> da quelle del file, non sommate. È un azzeramento completo del magazzino:
                     una quantità lasciata a 0 o vuota porta la giacenza a 0. I prodotti tolti dal file restano come sono.
                 </p>

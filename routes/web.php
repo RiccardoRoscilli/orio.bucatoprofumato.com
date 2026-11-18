@@ -64,17 +64,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/magazzino/excel', [StockController::class, 'excelTemplate'])->name('stock.excel');
     Route::post('/magazzino/excel', [StockController::class, 'excelImport'])->name('stock.excel.import');
 
+    // Riassortimento: l'ordine a TEA lo prepara e lo invia anche l'operatrice, e spunta la merce in arrivo
+    Route::get('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'index'])->name('tea-orders.index');
+    Route::post('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'store'])->name('tea-orders.store');
+    Route::get('/ordini-tea/modello', [\App\Http\Controllers\TeaOrderController::class, 'orderTemplate'])->name('tea-orders.template');
+    Route::post('/ordini-tea/excel', [\App\Http\Controllers\TeaOrderController::class, 'orderImport'])->name('tea-orders.import');
+    Route::get('/ordini-tea/{teaOrder}', [\App\Http\Controllers\TeaOrderController::class, 'show'])->whereNumber('teaOrder')->name('tea-orders.show');
+    Route::post('/ordini-tea/{teaOrder}/invia', [\App\Http\Controllers\TeaOrderController::class, 'resend'])->name('tea-orders.resend');
+    Route::post('/ordini-tea/ddt/{ddt}/conferma', [\App\Http\Controllers\TeaOrderController::class, 'confirmDdt'])->name('tea-ddts.confirm');
+    Route::post('/ordini-tea/ddt-righe/{item}', [\App\Http\Controllers\TeaOrderController::class, 'receive'])->name('tea-ddt-items.receive');
+    Route::post('/ordini-tea/{teaOrder}/stato', [\App\Http\Controllers\TeaOrderController::class, 'refresh'])->name('tea-orders.refresh');
+    Route::post('/ordini-tea/arrivi', [\App\Http\Controllers\TeaOrderController::class, 'arrivals'])->name('tea-orders.arrivals');
+    Route::put('/ordini-tea/in-preparazione', [\App\Http\Controllers\TeaOrderController::class, 'saveOpen'])->name('tea-orders.save-open');
+
     Route::middleware('can:admin')->group(function () {
         // Riassortimento: ordini a TEA (teaerp) e scorte minime
-        Route::get('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'index'])->name('tea-orders.index');
-        Route::post('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'store'])->name('tea-orders.store');
-        Route::get('/ordini-tea/modello', [\App\Http\Controllers\TeaOrderController::class, 'orderTemplate'])->name('tea-orders.template');
-        Route::post('/ordini-tea/excel', [\App\Http\Controllers\TeaOrderController::class, 'orderImport'])->name('tea-orders.import');
         Route::get('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumTemplate'])->name('tea-orders.minimum');
         Route::post('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumImport'])->name('tea-orders.minimum.import');
-        Route::get('/ordini-tea/{teaOrder}', [\App\Http\Controllers\TeaOrderController::class, 'show'])->name('tea-orders.show');
-        Route::post('/ordini-tea/{teaOrder}/invia', [\App\Http\Controllers\TeaOrderController::class, 'resend'])->name('tea-orders.resend');
-        Route::post('/ordini-tea/{teaOrder}/stato', [\App\Http\Controllers\TeaOrderController::class, 'refresh'])->name('tea-orders.refresh');
         Route::patch('/prodotti/{product}/scorta-minima', [\App\Http\Controllers\TeaOrderController::class, 'updateMinimum'])->name('products.minimum');
         Route::get('/magazzino/inventario', [StockController::class, 'index'])->name('stock.inventory');
         Route::post('/magazzino/inventario', [StockController::class, 'adjust'])->name('stock.adjust');

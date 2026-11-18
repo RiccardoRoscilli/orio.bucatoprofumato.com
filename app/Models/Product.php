@@ -82,6 +82,7 @@ class Product extends Model
             'price' => number_format($this->price_cents / 100, 2, ',', ''),
             'vat_rate' => $this->vat_rate,
             'stock' => $this->stock_qty,
+            'stock_min' => $this->stock_min,
         ];
     }
 

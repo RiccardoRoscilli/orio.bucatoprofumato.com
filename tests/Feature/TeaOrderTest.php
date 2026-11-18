@@ -31,20 +31,23 @@ class TeaOrderTest extends TestCase
 
     public function test_proposal_lists_products_below_minimum_with_reorder_qty(): void
     {
+        $this->fakeBoxes();
         $proposal = $this->actingAs($this->admin)->get('/ordini-tea')->assertOk()->viewData('proposal');
 
         $this->assertSame(['Ambra 500'], $proposal->pluck('name')->all());
-        $this->assertSame(12, $proposal->first()['qty']);
+        // riordino 12 pezzi, scatola da 6: 2 scatole
+        $this->assertSame([6, 2], [$proposal->first()['pcs_per_box'], $proposal->first()['boxes']]);
     }
 
     public function test_order_is_sent_to_teaerp_and_prices_are_saved(): void
     {
+        $this->fakeBoxes();
         Http::fake(['teaerp.example/api/orio/orders' => Http::response(['ok' => true, 'created' => true, 'order' => [
             'increment_id' => 'orio-000007', 'erp_status' => 'Pending', 'subtotal' => 118.08, 'tax_amount' => 25.98, 'grand_total' => 144.06,
             'items' => [['sku' => 'LA00012.050', 'qty' => 12, 'price' => 9.84, 'row_total' => 118.08]],
         ]], 201)]);
 
-        $this->actingAs($this->admin)->postJson('/ordini-tea', ['items' => [['product_id' => $this->low->id, 'qty' => 12]], 'notes' => 'novembre'])
+        $this->actingAs($this->admin)->postJson('/ordini-tea', ['items' => [['product_id' => $this->low->id, 'boxes' => 2]], 'notes' => 'novembre'])
             ->assertOk()->assertJson(['ok' => true]);
 
         $order = TeaOrder::first();
@@ -63,11 +66,12 @@ class TeaOrderTest extends TestCase
 
     public function test_rejected_order_is_kept_and_can_be_resent_with_same_reference(): void
     {
-        Http::fakeSequence('teaerp.example/*')
+        $this->fakeBoxes();
+        Http::fakeSequence('teaerp.example/api/orio/*')
             ->push(['ok' => false, 'error' => ['code' => 'INVALID_ITEMS', 'message' => 'Ordine non creato.', 'details' => ['LA00012.050: nessun prezzo nel listino']]], 422)
             ->push(['ok' => true, 'created' => true, 'order' => ['increment_id' => 'orio-000008', 'erp_status' => 'Pending', 'subtotal' => 1, 'tax_amount' => 0.22, 'grand_total' => 1.22, 'items' => []]], 201);
 
-        $this->actingAs($this->admin)->postJson('/ordini-tea', ['items' => [['product_id' => $this->low->id, 'qty' => 1]]])
+        $this->actingAs($this->admin)->postJson('/ordini-tea', ['items' => [['product_id' => $this->low->id, 'boxes' => 1]]])
             ->assertStatus(502)->assertJsonFragment(['ok' => false]);
         $order = TeaOrder::first();
         $this->assertSame('errore', $order->status);
@@ -75,14 +79,53 @@ class TeaOrderTest extends TestCase
 
         $this->postJson("/ordini-tea/{$order->id}/invia")->assertOk();
         $this->assertSame('orio-000008', $order->fresh()->tea_increment_id);
-        Http::assertSentCount(2);
-        Http::assertSent(fn (Request $r) => $r['reference'] === 'ORIO-' . $order->id);
+        $this->assertSame(6, $order->items->first()->qty); // 1 scatola da 6
+        Http::assertSentCount(3); // scatole da teaerp, ordine respinto, nuovo invio
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/orio/orders') && $r['reference'] === 'ORIO-' . $order->id);
     }
 
-    public function test_only_admin_can_order(): void
+    public function test_operator_orders_but_only_admin_sets_minimums(): void
     {
+        $this->fakeBoxes();
         $operator = User::create(['name' => 'Op', 'username' => 'op', 'password' => 'x', 'active' => true]);
-        $this->actingAs($operator)->get('/ordini-tea')->assertForbidden();
+        $this->actingAs($operator)->get('/ordini-tea')->assertOk()->assertDontSee('Scorte minime da Excel');
+        $this->get('/ordini-tea/scorte-minime')->assertForbidden();
+        $this->patch("/prodotti/{$this->low->id}/scorta-minima", ['stock_min' => 1])->assertForbidden();
+    }
+
+    public function test_open_order_is_saved_shared_and_sent_later(): void
+    {
+        $this->fakeBoxes();
+        Http::fake(['teaerp.example/api/orio/orders' => Http::response(['ok' => true, 'created' => true, 'order' => [
+            'increment_id' => 'orio-000010', 'erp_status' => 'Pending', 'subtotal' => 1, 'tax_amount' => 0.22, 'grand_total' => 1.22, 'items' => [],
+        ]], 201)]);
+        $operator = User::create(['name' => 'Pamela', 'username' => 'pam', 'password' => 'x', 'active' => true]);
+
+        // L'operatrice mette 10 scatole di Ambra 100: l'ordine resta aperto
+        $this->actingAs($operator)->putJson('/ordini-tea/in-preparazione', ['items' => [['product_id' => $this->ok->id, 'boxes' => 10]], 'notes' => 'vetrina'])
+            ->assertOk()->assertJsonPath('by', 'Pamela');
+        $open = TeaOrder::open();
+        $this->assertSame(['aperto', 10, 120], [$open->status, $open->items->first()->boxes, $open->items->first()->qty]);
+        $this->assertSame(0, Http::recorded(fn ($r) => str_contains($r->url(), '/api/orio/orders'))->count());
+
+        // Il giorno dopo l'admin la ritrova (non e' nello storico), e i sotto scorta mancanti sono a parte
+        $page = $this->actingAs($this->admin)->get('/ordini-tea')->assertOk();
+        $this->assertSame([[$this->ok->id, 10, 12]], $page->viewData('proposal')->map(fn ($r) => [$r['product_id'], $r['boxes'], $r['pcs_per_box']])->all());
+        $this->assertSame(['Ambra 500'], $page->viewData('suggestions')->pluck('description')->all());
+        $this->assertCount(0, $page->viewData('orders'));
+        $this->get("/ordini-tea/{$open->id}")->assertRedirect('/ordini-tea');
+
+        // Ne aggiunge e invia: e' lo stesso ordine, ora inviato a suo nome
+        $this->postJson('/ordini-tea', ['items' => [['product_id' => $this->ok->id, 'boxes' => 10], ['product_id' => $this->low->id, 'boxes' => 2]], 'notes' => 'vetrina'])->assertOk();
+        $sent = $open->fresh('items');
+        $this->assertSame(['inviato', $this->admin->id, 'ORIO-' . $open->id], [$sent->status, $sent->user_id, $sent->reference]);
+        $this->assertEqualsCanonicalizing([120, 12], $sent->items->pluck('qty')->all());
+        $this->assertNull(TeaOrder::open());
+
+        // Svuotato senza nota: l'ordine aperto si chiude
+        $this->putJson('/ordini-tea/in-preparazione', ['items' => [['product_id' => $this->ok->id, 'boxes' => 1]]])->assertOk();
+        $this->putJson('/ordini-tea/in-preparazione', ['items' => []])->assertOk()->assertJsonPath('saved_at', null);
+        $this->assertNull(TeaOrder::open());
     }
 
     private function fakeBoxes(): void
@@ -119,7 +162,7 @@ class TeaOrderTest extends TestCase
         $this->assertCount(3, $rows); // XX senza scatola in TEA: fuori dal modello
     }
 
-    public function test_filled_template_becomes_order_rows_in_pieces(): void
+    public function test_filled_template_becomes_order_rows_in_boxes(): void
     {
         $this->fakeBoxes();
         Product::create(['sku' => 'XX999', 'name' => 'Senza scatola', 'price_cents' => 100, 'vat_rate' => 22, 'active' => true, 'in_stock' => true]);
@@ -132,10 +175,11 @@ class TeaOrderTest extends TestCase
             ['LA00012.010', 'Ambra 100', 12, 'tre'],
         ])], ['Accept' => 'application/json'])->assertOk()->json();
 
-        $this->assertCount(1, $data['rows']);
-        $this->assertSame(['LA00012.050', 12, 6], [$data['rows'][0]['sku'], $data['rows'][0]['qty'], $data['rows'][0]['pcs_per_box']]);
-        $this->assertSame([2, 12], [$data['boxes'], $data['pieces']]);
-        $this->assertCount(3, $data['problems']);
+        $this->assertCount(2, $data['rows']);
+        $this->assertSame(['LA00012.050', 2, 6], [$data['rows'][0]['sku'], $data['rows'][0]['boxes'], $data['rows'][0]['pcs_per_box']]);
+        $this->assertSame(['XX999', 1, 1], [$data['rows'][1]['sku'], $data['rows'][1]['boxes'], $data['rows'][1]['pcs_per_box']]); // senza scatola: a pezzo
+        $this->assertSame([3, 13], [$data['boxes'], $data['pieces']]);
+        $this->assertCount(2, $data['problems']);
         $this->assertSame(0, TeaOrder::count()); // il file prepara l'ordine, non lo invia
     }
 

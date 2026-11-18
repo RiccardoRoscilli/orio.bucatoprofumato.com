@@ -10,7 +10,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 /**
- * Ordine a TEA da file Excel, con lo stesso modello che usa emmycasa per ordinare a TEA:
+ * Ordine a TEA da file Excel, a scatole:
  * colonne sku, name, pcs_per_box, boxes. Si scrivono le scatole; i pezzi per scatola sono quelli
  * di teaerp, e a TEA va il totale dei pezzi (scatole x pezzi per scatola).
  */
@@ -23,7 +23,7 @@ class TeaOrderExcel
     }
 
     /**
-     * Modello con i prodotti in vendita in negozio che TEA vende a scatole (come emmycasa, solo
+     * Modello con i prodotti in vendita in negozio che TEA vende a scatole (solo
      * quelli ordinabili), pezzi per scatola da teaerp e scatole a zero. Gli altri si ordinano a
      * pezzi con la ricerca nella pagina.
      *
@@ -98,11 +98,7 @@ class TeaOrderExcel
                 $result['problems'][] = "riga {$line}: {$sku} non è un prodotto di Orio";
                 continue;
             }
-            $perBox = $boxesBySku[$sku] ?? null;
-            if (! $perBox) {
-                $result['problems'][] = "riga {$line}: {$sku} non ha la scatola in TEA, aggiungilo a pezzi con la ricerca";
-                continue;
-            }
+            $perBox = $boxesBySku[$sku] ?? 1; // senza scatola in TEA: si ordina a pezzo
             $result['rows'][] = [
                 'product_id' => $product->id,
                 'sku' => $product->sku,
@@ -111,7 +107,7 @@ class TeaOrderExcel
                 'stock' => $product->stock_qty,
                 'stock_min' => $product->stock_min,
                 'pcs_per_box' => $perBox,
-                'qty' => $boxes * $perBox,
+                'boxes' => $boxes,
             ];
             $result['boxes'] += $boxes;
             $result['pieces'] += $boxes * $perBox;
@@ -120,7 +116,7 @@ class TeaOrderExcel
         return $result;
     }
 
-    /** Colonne cercate per intestazione (come nel modello), altrimenti le posizioni di emmycasa. */
+    /** Colonne cercate per intestazione (come nel modello), altrimenti le posizioni standard. */
     private function columns(array $header): array
     {
         $find = function (array $names, int $default) use ($header) {

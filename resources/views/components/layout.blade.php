@@ -18,11 +18,11 @@
                     <img src="{{ asset('images/logo-elda.png') }}" alt="Le Essenze di Elda" class="h-8 w-auto">
                 </a>
                 @php
-                    $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
+                    $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'tea-orders.index' => 'Ordini TEA', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
                     // Voci dell'admin raccolte in un menu, per non allargare la barra.
                     // La prova della stampante si apre dalla Configurazione; OpenAPI non ha voce (dati solo per la rifatturazione)
                     $adminNav = auth()->user()->can('admin')
-                        ? ['tea-orders.index' => 'Ordini TEA', 'attendances.index' => 'Presenze', 'badges.index' => 'Badge', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
+                        ? ['attendances.index' => 'Presenze', 'badges.index' => 'Badge', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
                         : [];
                     $isActive = fn ($route) => request()->routeIs(str_replace('.index', '.*', $route));
                     $adminActive = collect(array_keys($adminNav))->contains($isActive) || request()->routeIs('fiscal-printer');

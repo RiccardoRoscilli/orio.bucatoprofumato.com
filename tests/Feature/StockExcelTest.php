@@ -46,16 +46,32 @@ class StockExcelTest extends TestCase
     public function test_template_has_one_quantity_column_and_only_products_sold_in_shop(): void
     {
         $this->a->forceFill(['stock_qty' => 7])->save();
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(['ok' => true, 'products' => [['sku' => 'A1', 'pezzi_per_box' => 12]]])]);
+        config(['orio.tea.url' => 'https://teaerp.example', 'orio.tea.user' => 'orio', 'orio.tea.password' => 'x']);
         $response = $this->actingAs($this->operator)->get('/magazzino/excel')->assertOk();
         $path = tempnam(sys_get_temp_dir(), 'orio') . '.xlsx';
         file_put_contents($path, $response->streamedContent());
         $rows = IOFactory::load($path)->getActiveSheet()->toArray();
 
-        $this->assertSame(['ID Orio', 'SKU', 'EAN', 'Prodotto', 'Formato', 'Quantità'], array_slice($rows[0], 0, 6));
-        $this->assertNull($rows[0][6] ?? null);
-        $this->assertSame(['Ammorbidente', 'Bucato'], array_column(array_slice($rows, 1), 3));
-        $this->assertSame('8000000000017', $rows[1][2]);
-        $this->assertEquals(0, $rows[1][5]);
+        $this->assertSame(['sku', 'name', 'pcs_per_box', 'boxes', 'extra_pcs'], array_slice($rows[0], 0, 5));
+        $this->assertNull($rows[0][5] ?? null);
+        $this->assertSame(['A1', 'B1'], array_column(array_slice($rows, 1), 0));
+        $this->assertSame(['Ammorbidente', 'Bucato'], array_column(array_slice($rows, 1), 1));
+        $this->assertEquals(12, $rows[1][2]); // pezzi per scatola da teaerp
+        $this->assertEquals(1, $rows[2][2]); // non venduto a scatole
+        $this->assertEquals([0, 0], [$rows[1][3], $rows[1][4]]);
+    }
+
+    public function test_boxes_times_pieces_plus_loose_pieces_replace_stock(): void
+    {
+        $book = new Spreadsheet();
+        $book->getActiveSheet()->fromArray([['sku', 'name', 'pcs_per_box', 'boxes', 'extra_pcs'], ['A1', 'Ammorbidente', 12, 2, 7], ['B1', 'Bucato', 1, null, null]]);
+        $path = tempnam(sys_get_temp_dir(), 'orio') . '.xlsx';
+        (new Xlsx($book))->save($path);
+        $this->b->forceFill(['stock_qty' => 4])->save();
+
+        $this->actingAs($this->operator)->post('/magazzino/excel', ['file' => new UploadedFile($path, 'magazzino.xlsx', null, null, true)])->assertRedirect();
+        $this->assertEquals([31, 0], [$this->a->fresh()->stock_qty, $this->b->fresh()->stock_qty]);
     }
 
     public function test_file_replaces_stock_empty_means_zero_and_missing_products_stay(): void

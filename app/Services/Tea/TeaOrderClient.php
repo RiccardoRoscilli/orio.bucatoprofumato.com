@@ -29,7 +29,7 @@ class TeaOrderClient
     }
 
     /**
-     * Pezzi per scatola di ogni prodotto TEA (stesso servizio usato da emmycasa per ordinare a
+     * Pezzi per scatola di ogni prodotto TEA (servizio product-boxes di teaerp per ordinare a
      * scatole), per SKU. Tenuto un'ora in memoria: cambia di rado.
      *
      * @return array<string, int>

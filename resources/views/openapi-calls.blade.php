@@ -2,7 +2,7 @@
     <div class="mb-4 flex flex-wrap items-end gap-3">
         <div class="mr-auto">
             <h1 class="text-xl font-bold">Chiamate OpenAPI</h1>
-            <p class="text-sm text-stone-500">Ricerche dei dati aziendali da partita IVA fatte da Orio. L'account OpenAPI è condiviso con emmycasa: qui ci sono solo le chiamate di Orio, da rifatturare.</p>
+            <p class="text-sm text-stone-500">Ricerche dei dati aziendali da partita IVA fatte da Orio. Qui ci sono solo le chiamate fatte da Orio, da rifatturare.</p>
         </div>
         <form method="GET" class="flex flex-wrap items-end gap-2">
             <label class="text-sm">

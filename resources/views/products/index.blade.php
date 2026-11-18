@@ -7,6 +7,7 @@
             Ultima sincronizzazione: <span id="last-sync">{{ $lastSync ? \Illuminate\Support\Carbon::parse($lastSync)->format('d/m/Y H:i') : 'mai' }}</span>
         </span>
         @can('admin')
+            <a href="{{ route('products.create') }}" class="btn-light py-2">+ Nuovo prodotto</a>
             <button type="button" id="sync-button" data-url="{{ route('products.sync') }}" class="btn-light py-2">
                 <svg data-spinner class="hidden h-4 w-4 animate-spin text-brand-600" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/>

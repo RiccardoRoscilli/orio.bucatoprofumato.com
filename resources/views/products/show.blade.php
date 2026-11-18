@@ -17,7 +17,14 @@
             @if ($product->category)
                 <div class="text-xs font-semibold uppercase tracking-wide text-brand-700">{{ $product->category }}</div>
             @endif
-            <h1 class="mt-1 text-2xl font-bold sm:text-3xl">{{ trim($product->name) }}</h1>
+            <div class="mt-1 flex items-start gap-3">
+                <h1 class="mr-auto text-2xl font-bold sm:text-3xl">{{ trim($product->name) }}</h1>
+                @if ($product->shop_only)
+                    @can('admin')
+                        <a href="{{ route('products.edit', $product) }}" class="btn-light shrink-0 py-2">Modifica</a>
+                    @endcan
+                @endif
+            </div>
 
             <div class="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span class="text-3xl font-bold tabular-nums">{{ euro($product->price_cents) }}</span>
@@ -102,12 +109,14 @@
                 </div>
             @endif
 
-            @if (! $product->short_description && ! $product->description)
+            @if (! $product->shop_only && ! $product->short_description && ! $product->description)
                 <p class="mt-6 rounded-xl bg-stone-100 px-4 py-3 text-sm text-stone-600">Sul sito questo prodotto non ha descrizione.</p>
             @endif
 
             <div class="mt-6 flex flex-wrap items-center gap-3 text-sm text-stone-500">
+                @unless ($product->shop_only)
                 <a href="{{ $siteUrl }}" target="_blank" rel="noopener" class="btn-light py-2">Cerca sul sito ↗</a>
+                @endunless
                 @if ($product->synced_at)
                     <span>Dati del sito aggiornati al {{ $product->synced_at->format('d/m/Y H:i') }}</span>
                 @endif

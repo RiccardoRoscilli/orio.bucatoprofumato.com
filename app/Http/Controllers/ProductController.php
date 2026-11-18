@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Services\BucatoProductSyncService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -81,6 +82,105 @@ class ProductController extends Controller
             'movements' => $product->stockMovements()->with('user:id,name')->latest('id')->limit(20)->get(),
             'siteUrl' => 'https://www.bucatoprofumato.com/catalogsearch/result/?q=' . urlencode(trim($product->name)),
         ]);
+    }
+
+    /** Nuovo prodotto venduto solo in negozio (es. shopper): non e' sul sito e la sincronizzazione non lo tocca. */
+    public function create()
+    {
+        return view('products.form', ['product' => new Product(['vat_rate' => 22]), 'vatRates' => $this->vatRates()]);
+    }
+
+    public function store(Request $request)
+    {
+        $data = $this->validated($request);
+        $data['sku'] = $data['sku'] ?: $this->nextSku();
+        $product = Product::create($data + [
+            'shop_only' => true, 'active' => true, 'sold_in_shop' => true, 'in_stock' => true,
+        ]);
+
+        return redirect()->route('products.show', $product)->with('status', 'Prodotto creato: si vende già in cassa.');
+    }
+
+    /** Solo i prodotti creati in Orio: gli altri arrivano dal sito. */
+    public function edit(Product $product)
+    {
+        abort_unless($product->shop_only, 404);
+
+        return view('products.form', ['product' => $product, 'vatRates' => $this->vatRates()]);
+    }
+
+    public function update(Request $request, Product $product)
+    {
+        abort_unless($product->shop_only, 404);
+        $data = $this->validated($request, $product);
+        $data['sku'] = $data['sku'] ?: $product->sku;
+        $product->update($data);
+
+        return redirect()->route('products.show', $product)->with('status', 'Prodotto aggiornato.');
+    }
+
+    private function validated(Request $request, ?Product $product = null): array
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'price' => ['required', 'regex:/^\d+([.,]\d{1,2})?$/'],
+            'vat_rate' => ['required', 'integer', \Illuminate\Validation\Rule::in($this->vatRates())],
+            'ean' => ['nullable', 'regex:/^\d{8,14}$/'],
+            'sku' => ['nullable', 'string', 'max:64', \Illuminate\Validation\Rule::unique('products', 'sku')->ignore($product)],
+            'format' => 'nullable|string|max:60',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:8192',
+            'remove_image' => 'nullable|boolean',
+        ], [
+            'image.image' => 'Il file della foto non è un\'immagine.',
+            'image.mimes' => 'La foto deve essere JPG, PNG o WEBP.',
+            'image.max' => 'La foto è troppo grande (massimo 8 MB).',
+            'price.regex' => 'Prezzo non valido: ad esempio 2,50.',
+            'ean.regex' => 'Il codice a barre deve avere da 8 a 14 cifre.',
+            'sku.unique' => 'Questo codice è già usato da un altro prodotto.',
+        ], ['name' => 'nome', 'price' => 'prezzo', 'vat_rate' => 'IVA', 'ean' => 'codice a barre', 'sku' => 'codice']);
+
+        // Lo stesso codice a barre su due prodotti farebbe scegliere ogni volta in cassa
+        if ($data['ean'] ?? null) {
+            $other = Product::whereBarcode($data['ean'])->when($product, fn ($q) => $q->whereKeyNot($product->id))->first();
+            if ($other) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['ean' => "Codice a barre già usato da «" . trim($other->name) . "»."]);
+            }
+        }
+
+        $data['price_cents'] = (int) round((float) str_replace(',', '.', $data['price']) * 100);
+        unset($data['price']);
+        $data['sku'] = trim((string) ($data['sku'] ?? ''));
+
+        // Foto caricata in Orio (i prodotti del sito hanno quella di bucatoprofumato.com)
+        $old = $product?->image_url;
+        if ($request->hasFile('image') || $request->boolean('remove_image')) {
+            $data['image_url'] = $request->hasFile('image')
+                ? '/storage/' . $request->file('image')->store('products', 'public')
+                : null;
+            if ($old && str_contains($old, '/storage/products/')) {
+                Storage::disk('public')->delete('products/' . basename($old));
+            }
+        }
+        unset($data['image'], $data['remove_image']);
+
+        return $data;
+    }
+
+    /** ORIO-0001, ORIO-0002... per i prodotti creati senza codice. */
+    private function nextSku(): string
+    {
+        $last = Product::where('sku', 'like', 'ORIO-____')->pluck('sku')
+            ->map(fn ($s) => (int) substr($s, 5))->max() ?? 0;
+
+        return sprintf('ORIO-%04d', $last + 1);
+    }
+
+    /** Aliquote con un reparto programmato sulla stampante fiscale. */
+    private function vatRates(): array
+    {
+        $rates = array_keys(config('orio.fiscal_printer.departments') ?: []);
+
+        return $rates ?: [22];
     }
 
     private function applyFilter($query, string $filter): void

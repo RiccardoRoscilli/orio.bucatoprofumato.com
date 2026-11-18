@@ -79,6 +79,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/magazzino/inventario', [StockController::class, 'index'])->name('stock.inventory');
         Route::post('/magazzino/inventario', [StockController::class, 'adjust'])->name('stock.adjust');
 
+        Route::get('/prodotti/nuovo', [ProductController::class, 'create'])->name('products.create');
+        Route::post('/prodotti', [ProductController::class, 'store'])->name('products.store');
+        Route::get('/prodotti/{product}/modifica', [ProductController::class, 'edit'])->name('products.edit');
+        Route::put('/prodotti/{product}', [ProductController::class, 'update'])->name('products.update');
         Route::post('/prodotti/sincronizza', [ProductController::class, 'sync'])->name('products.sync');
         Route::post('/prodotti/allinea-prezzi', [ProductController::class, 'alignPrice'])->name('products.align-all');
         Route::post('/prodotti/{product}/allinea-prezzo', [ProductController::class, 'alignPrice'])->name('products.align');

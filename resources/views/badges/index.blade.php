@@ -56,7 +56,7 @@
                             </form>
                         </td>
                         <td class="whitespace-nowrap px-4 py-3 text-right">
-                            <button type="button" class="inline-flex items-center gap-1.5 font-semibold text-brand-700" title="Solo il QR, per il grafico"
+                            <button type="button" class="-mx-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900" title="Solo il QR, per il grafico"
                                     onclick="downloadBadgeSvg(@js($badge->code), @js('operatore-' . $badge->number . '-qr.svg'))">
                                 <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                     <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>

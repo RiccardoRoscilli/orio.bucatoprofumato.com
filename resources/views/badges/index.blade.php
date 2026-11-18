@@ -1,9 +1,6 @@
 <x-layout title="Badge">
     <div class="mb-4 flex flex-wrap items-center gap-3">
         <h1 class="mr-auto text-xl font-bold">Badge</h1>
-        @if ($badges->isNotEmpty())
-            <a href="{{ route('badges.print') }}" target="_blank" class="btn-light py-2">Stampa tutti</a>
-        @endif
         <form method="POST" action="{{ route('badges.store') }}" class="flex items-center gap-2">
             @csrf
             <input type="number" name="count" value="{{ $badges->isEmpty() ? 5 : 1 }}" min="1" max="50" class="input w-20 py-2 text-center" aria-label="Quanti badge">
@@ -16,7 +13,7 @@
     @endif
 
     <p class="mb-4 text-sm text-stone-600">
-        I badge sono numerati e si stampano una volta sola: ognuno si assegna a una persona. Quando qualcuno va via,
+        I badge sono numerati: il QR di ognuno si scarica in SVG e va al grafico; se un badge si perde si ristampa uguale. Ognuno si assegna a una persona. Quando qualcuno va via,
         <strong>prima</strong> metti il suo badge su «libero» (o direttamente sulla nuova persona), poi consegnalo:
         i turni già registrati restano a chi li ha fatti.
     </p>
@@ -59,13 +56,18 @@
                             </form>
                         </td>
                         <td class="whitespace-nowrap px-4 py-3 text-right">
-                            <a href="{{ route('badges.print', ['id' => $badge->id]) }}" target="_blank" class="mr-3 font-semibold text-brand-700">Stampa</a>
-                            <button type="button" class="mr-3 font-semibold text-brand-700" title="Solo il QR, per il grafico"
-                                    onclick="downloadBadgeSvg(@js($badge->code), @js('operatore-' . $badge->number . '-qr.svg'))">QR in SVG</button>
+                            <button type="button" class="inline-flex items-center gap-1.5 font-semibold text-brand-700" title="Solo il QR, per il grafico"
+                                    onclick="downloadBadgeSvg(@js($badge->code), @js('operatore-' . $badge->number . '-qr.svg'))">
+                                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+                                    <path d="M14 14h3v3M21 14v.01M14 21h.01M17.5 21H21v-3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                QR in SVG
+                            </button>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="3" class="px-4 py-8 text-center text-stone-500">Nessun badge: creane quanti ne servono (es. 5), poi stampali e assegnali.</td></tr>
+                    <tr><td colspan="3" class="px-4 py-8 text-center text-stone-500">Nessun badge: creane quanti ne servono (es. 5), poi scarica i QR e assegnali.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -88,7 +88,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/utenti', [UserController::class, 'index'])->name('users.index');
         Route::get('/badge', [\App\Http\Controllers\BadgeController::class, 'index'])->name('badges.index');
         Route::post('/badge', [\App\Http\Controllers\BadgeController::class, 'store'])->name('badges.store');
-        Route::get('/badge/stampa', [\App\Http\Controllers\BadgeController::class, 'print'])->name('badges.print');
         Route::put('/badge/{badge}', [\App\Http\Controllers\BadgeController::class, 'update'])->name('badges.update');
         Route::post('/badge/dispositivi', [\App\Http\Controllers\AttendanceDeviceController::class, 'enableThis'])->name('devices.enable');
         Route::post('/badge/dispositivi/codice', [\App\Http\Controllers\AttendanceDeviceController::class, 'code'])->name('devices.code');

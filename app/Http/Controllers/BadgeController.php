@@ -9,7 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 /**
- * Badge fissi numerati: si creano e si stampano una volta, poi si assegnano agli utenti.
+ * Badge fissi numerati: si creano una volta (il QR in SVG va al grafico), poi si assegnano agli utenti.
  * Quando una dipendente va via il badge si libera e passa a un'altra; i turni gia' registrati
  * restano a chi li ha fatti.
  */
@@ -32,8 +32,8 @@ class BadgeController extends Controller
         $badges = Badge::createNext($count);
 
         return redirect()->route('badges.index')->with('status', $count === 1
-            ? "Creato {$badges->first()->label()}: stampalo da qui."
-            : "Creati i badge da {$badges->first()->number} a {$badges->last()->number}: stampali da qui.");
+            ? "Creato {$badges->first()->label()}: scarica il suo QR da qui."
+            : "Creati i badge da {$badges->first()->number} a {$badges->last()->number}: scarica i loro QR da qui.");
     }
 
     /** Assegna a un utente (o libera) il badge. */
@@ -44,15 +44,5 @@ class BadgeController extends Controller
         abort_if($user && ! $user->active, 422, 'Utente disattivato.');
 
         return redirect()->route('badges.index')->with('status', $badge->assignTo($user));
-    }
-
-    /** Stampa dei badge (tutti, oppure uno solo con ?id=). */
-    public function print(Request $request)
-    {
-        $badges = Badge::where('active', true)->orderBy('number')
-            ->when($request->integer('id'), fn ($q, $id) => $q->whereKey($id))
-            ->get();
-
-        return view('badges.print', ['badges' => $badges]);
     }
 }

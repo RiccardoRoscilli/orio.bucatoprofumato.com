@@ -60,7 +60,6 @@ class AttendanceTest extends TestCase
         $this->actingAs($this->admin)->post('/badge', ['count' => 3])->assertRedirect('/badge');
         $this->assertSame([1, 2, 3], Badge::orderBy('number')->pluck('number')->all());
         $this->assertMatchesRegularExpression('/^ORIO[A-Z0-9]{8}$/', Badge::first()->code);
-        $this->get('/badge/stampa')->assertOk()->assertSee('Operatore')->assertSee(Badge::find(3)->code);
 
         // Badge 2 a Maria: entra e lavora
         $badge = Badge::where('number', 2)->first();

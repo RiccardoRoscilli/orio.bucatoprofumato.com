@@ -93,7 +93,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/badge/dispositivi', [\App\Http\Controllers\AttendanceDeviceController::class, 'enableThis'])->name('devices.enable');
         Route::post('/badge/dispositivi/codice', [\App\Http\Controllers\AttendanceDeviceController::class, 'code'])->name('devices.code');
         Route::delete('/badge/dispositivi/{device}', [\App\Http\Controllers\AttendanceDeviceController::class, 'revoke'])->name('devices.revoke');
-        Route::post('/badge/{badge}/sostituisci', [\App\Http\Controllers\BadgeController::class, 'replace'])->name('badges.replace');
 
         Route::get('/presenze', [\App\Http\Controllers\AttendanceController::class, 'index'])->name('attendances.index');
         Route::get('/presenze/excel', [\App\Http\Controllers\AttendanceController::class, 'excel'])->name('attendances.excel');

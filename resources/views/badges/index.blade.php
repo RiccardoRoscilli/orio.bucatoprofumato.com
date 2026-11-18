@@ -60,11 +60,8 @@
                         </td>
                         <td class="whitespace-nowrap px-4 py-3 text-right">
                             <a href="{{ route('badges.print', ['id' => $badge->id]) }}" target="_blank" class="mr-3 font-semibold text-brand-700">Stampa</a>
-                            <form method="POST" action="{{ route('badges.replace', $badge) }}" class="inline"
-                                  data-confirm="{{ $badge->label() }} perso? Quello attuale smetterà di funzionare e ne stampi uno nuovo con lo stesso numero." data-confirm-label="Sostituisci" data-confirm-danger>
-                                @csrf
-                                <button class="font-semibold text-red-700">Perso</button>
-                            </form>
+                            <button type="button" class="mr-3 font-semibold text-brand-700" title="Solo il QR, per il grafico"
+                                    onclick="downloadBadgeSvg(@js($badge->code), @js('operatore-' . $badge->number . '-qr.svg'))">QR in SVG</button>
                         </td>
                     </tr>
                 @empty

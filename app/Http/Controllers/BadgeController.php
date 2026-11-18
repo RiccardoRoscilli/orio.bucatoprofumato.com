@@ -46,15 +46,6 @@ class BadgeController extends Controller
         return redirect()->route('badges.index')->with('status', $badge->assignTo($user));
     }
 
-    /** Badge perso: quello vecchio smette di funzionare, se ne stampa uno nuovo con lo stesso numero. */
-    public function replace(Badge $badge)
-    {
-        $badge->update(['code' => Badge::newCode(), 'active' => true]);
-
-        return redirect()->route('badges.print', ['id' => $badge->id])
-            ->with('status', "Nuovo {$badge->label()}: stampalo, quello vecchio non funziona più.");
-    }
-
     /** Stampa dei badge (tutti, oppure uno solo con ?id=). */
     public function print(Request $request)
     {

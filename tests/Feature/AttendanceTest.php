@@ -84,12 +84,6 @@ class AttendanceTest extends TestCase
         $this->actingAs($this->tablet)->postJson('/presenze/badge', ['code' => $badge->code])->assertStatus(422)
             ->assertJsonPath('message', 'Operatore 2 non è assegnato a nessuno: si assegna da Gestione > Badge.');
 
-        // Badge perso: nuovo codice, il vecchio non funziona piu'
-        $old = $badge->code;
-        $this->actingAs($this->admin)->post("/badge/{$badge->id}/sostituisci")->assertRedirect();
-        $this->assertNotSame($old, $badge->fresh()->code);
-        $this->actingAs($this->tablet)->postJson('/presenze/badge', ['code' => $old])->assertNotFound();
-
         // Gli operatori non gestiscono i badge
         $this->get('/badge')->assertForbidden();
     }

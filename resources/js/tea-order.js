@@ -6,9 +6,10 @@ const fmtQty = (qty) => (Math.round((qty ?? 0) * 1000) / 1000).toLocaleString('i
  * Ordine a TEA a scatole intere (TEA non accetta pezzi sfusi): proposta dei prodotti sotto scorta,
  * modificabile, e invio a teaerp. I pezzi sono scatole x pezzi per scatola.
  */
-export default (proposal = [], boxes = {}, open = null, suggestions = []) => ({
+export default (proposal = [], boxes = {}, open = null, suggestions = [], teaSkus = []) => ({
     rows: proposal.map((r) => ({ ...r })),
     perBox: boxes,
+    teaSkus: new Set(teaSkus),
     suggestions,
     // Ordine in preparazione salvato sul server: resta aperto finche' non viene inviato
     saveState: open ? 'saved' : 'new',
@@ -27,7 +28,20 @@ export default (proposal = [], boxes = {}, open = null, suggestions = []) => ({
     fmtQty,
 
     pieces(row) {
-        return (parseInt(row.boxes, 10) || 0) * row.pcs_per_box;
+        return (parseInt(row.boxes, 10) || 0) * (parseInt(row.pcs_per_box, 10) || 1);
+    },
+
+    // Pezzi per scatola scritti a mano (solo prodotti senza scatola in TEA): valgono anche per i prossimi
+    setPerBox(row) {
+        const pcs = Math.min(9999, Math.max(1, parseInt(row.pcs_per_box, 10) || 1));
+        row.pcs_per_box = pcs;
+        if (row.sku) this.perBox[row.sku.trim()] = pcs;
+    },
+
+    item(r, boxes) {
+        const item = { product_id: r.product_id, boxes };
+        if (!r.pcs_from_tea) item.pcs_per_box = Math.max(1, parseInt(r.pcs_per_box, 10) || 1);
+        return item;
     },
 
     init() {
@@ -53,7 +67,7 @@ export default (proposal = [], boxes = {}, open = null, suggestions = []) => ({
 
     async saveOpen() {
         try {
-            const items = this.rows.map((r) => ({ product_id: r.product_id, boxes: Math.max(0, parseInt(r.boxes, 10) || 0) }));
+            const items = this.rows.map((r) => this.item(r, Math.max(0, parseInt(r.boxes, 10) || 0)));
             const { data } = await axios.put('/ordini-tea/in-preparazione', { items, notes: this.notes || null });
             this.savedAt = data.saved_at;
             this.savedBy = data.by;
@@ -88,7 +102,7 @@ export default (proposal = [], boxes = {}, open = null, suggestions = []) => ({
         else this.rows.push({
             product_id: product.product_id, sku: product.sku, name: product.description, format: product.format,
             stock: product.stock, stock_min: product.stock_min ?? null,
-            pcs_per_box: this.perBox[(product.sku ?? '').trim()] ?? 1, boxes: 1,
+            pcs_per_box: this.perBox[(product.sku ?? '').trim()] ?? 1, pcs_from_tea: this.teaSkus.has((product.sku ?? '').trim()), boxes: 1,
         });
         this.query = '';
         this.results = [];
@@ -119,7 +133,10 @@ export default (proposal = [], boxes = {}, open = null, suggestions = []) => ({
                 confirmLabel: 'Sostituisci',
             })) return;
             this.rows = data.rows;
-            this.importInfo = `Dal file: ${data.rows.length} prodotti, ${data.boxes} scatole (${fmtQty(data.pieces)} pz). Controlla e poi invia.`;
+            data.rows.forEach((r) => { if (!r.pcs_from_tea && r.sku) this.perBox[r.sku.trim()] = r.pcs_per_box; });
+            this.importInfo = `Dal file: ${data.rows.length} prodotti, ${data.boxes} scatole (${fmtQty(data.pieces)} pz).`
+                + (data.learned ? ` Pezzi per scatola presi dal file per ${data.learned} prodotti che TEA non ha a scatole.` : '')
+                + ' Controlla e poi invia.';
         } catch (e) {
             const data = e.response?.data;
             this.error = data?.errors ? Object.values(data.errors)[0][0] : (data?.message ?? e.message);
@@ -130,7 +147,7 @@ export default (proposal = [], boxes = {}, open = null, suggestions = []) => ({
 
     async send() {
         this.error = null;
-        const items = this.rows.filter((r) => parseInt(r.boxes, 10) > 0).map((r) => ({ product_id: r.product_id, boxes: parseInt(r.boxes, 10) }));
+        const items = this.rows.filter((r) => parseInt(r.boxes, 10) > 0).map((r) => this.item(r, parseInt(r.boxes, 10)));
         if (!items.length) { this.error = 'Aggiungi almeno un prodotto con almeno una scatola.'; return; }
         if (!await window.askConfirm({
             title: 'Inviare l\'ordine a TEA?',

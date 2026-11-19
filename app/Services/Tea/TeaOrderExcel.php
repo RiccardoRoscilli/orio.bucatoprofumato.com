@@ -12,7 +12,8 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 /**
  * Ordine a TEA da file Excel, a scatole:
  * colonne sku, name, pcs_per_box, boxes. Si scrivono le scatole; i pezzi per scatola sono quelli
- * di teaerp, e a TEA va il totale dei pezzi (scatole x pezzi per scatola).
+ * di teaerp e, dove teaerp non li ha, quelli scritti nel file (che Orio ricorda per le volte dopo).
+ * A TEA va il totale dei pezzi (scatole x pezzi per scatola).
  */
 class TeaOrderExcel
 {
@@ -23,9 +24,8 @@ class TeaOrderExcel
     }
 
     /**
-     * Modello con i prodotti in vendita in negozio che TEA vende a scatole (solo
-     * quelli ordinabili), pezzi per scatola da teaerp e scatole a zero. Gli altri si ordinano a
-     * pezzi con la ricerca nella pagina.
+     * Modello con i prodotti TEA in vendita in negozio, pezzi per scatola (vuoti, in giallo, dove
+     * nessuno li sa ancora) e scatole a zero. Esclusi i prodotti solo del negozio (codici ORIO-).
      *
      * @throws \RuntimeException se teaerp non da' i pezzi per scatola
      */
@@ -38,17 +38,22 @@ class TeaOrderExcel
         $sheet->fromArray(self::HEADERS);
 
         $row = 2;
-        foreach (Product::sellable()->whereNotNull('sku')->orderBy('sku')->get(['sku', 'name']) as $p) {
-            if (! isset($boxes[trim($p->sku)])) {
-                continue;
+        $missing = [];
+        foreach (Product::sellable()->whereNotNull('sku')->where('sku', 'not like', 'ORIO-%')->orderBy('sku')->get(['sku', 'name']) as $p) {
+            $pcs = $boxes[trim($p->sku)] ?? null;
+            $sheet->fromArray([trim($p->sku), trim($p->name), $pcs, 0], null, "A{$row}", true);
+            if ($pcs === null) {
+                $missing[] = "C{$row}";
             }
-            $sheet->fromArray([trim($p->sku), trim($p->name), $boxes[trim($p->sku)], 0], null, "A{$row}", true);
             $row++;
         }
         $last = max(2, $row - 1);
 
         $sheet->getStyle('A1:D1')->getFont()->setBold(true);
         $sheet->getStyle("D1:D{$last}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FFF4CC');
+        foreach ($missing as $cell) {
+            $sheet->getStyle($cell)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('FDE2E2');
+        }
         $sheet->freezePane('A2');
         $sheet->setAutoFilter("A1:D{$last}");
         foreach (['A' => 20, 'B' => 60, 'C' => 12, 'D' => 10] as $col => $width) {
@@ -73,9 +78,10 @@ class TeaOrderExcel
     {
         $rows = IOFactory::load($file->getRealPath())->getActiveSheet()->toArray(null, true, false, false);
         $col = $this->columns(array_shift($rows) ?? []);
+        $teaBoxes = $this->client->teaBoxes();
         $boxesBySku = $this->client->productBoxes();
 
-        $result = ['rows' => [], 'problems' => [], 'boxes' => 0, 'pieces' => 0];
+        $result = ['rows' => [], 'problems' => [], 'boxes' => 0, 'pieces' => 0, 'learned' => 0];
         $bySku = [];
         foreach ($rows as $index => $row) {
             $line = $index + 2;
@@ -88,17 +94,30 @@ class TeaOrderExcel
                 $result['problems'][] = "riga {$line} ({$sku}): scatole non valide «{$raw}»";
                 continue;
             }
-            $bySku[$sku] = ['boxes' => ($bySku[$sku]['boxes'] ?? 0) + (int) $raw, 'line' => $line];
+            $pcs = $col['pcs'] === null ? '' : trim((string) ($row[$col['pcs']] ?? ''));
+            $bySku[$sku] = [
+                'boxes' => ($bySku[$sku]['boxes'] ?? 0) + (int) $raw,
+                'line' => $line,
+                'pcs' => ctype_digit($pcs) && (int) $pcs > 0 && (int) $pcs <= 9999 ? (int) $pcs : ($bySku[$sku]['pcs'] ?? null),
+            ];
         }
 
         $products = Product::whereIn('sku', array_keys($bySku))->get()->keyBy(fn ($p) => trim($p->sku));
-        foreach ($bySku as $sku => ['boxes' => $boxes, 'line' => $line]) {
+        foreach ($bySku as $sku => ['boxes' => $boxes, 'line' => $line, 'pcs' => $filePcs]) {
             $product = $products->get($sku);
             if (! $product) {
                 $result['problems'][] = "riga {$line}: {$sku} non è un prodotto di Orio";
                 continue;
             }
-            $perBox = $boxesBySku[$sku] ?? 1; // senza scatola in TEA: si ordina a pezzo
+            // Comanda teaerp; dove teaerp non ha la scatola vale il file, che Orio ricorda
+            if (! isset($teaBoxes[$sku]) && $filePcs && $filePcs !== $product->pcs_per_box) {
+                $product->update(['pcs_per_box' => $filePcs]);
+                $boxesBySku[$sku] = $filePcs;
+                $result['learned']++;
+            } elseif (isset($teaBoxes[$sku]) && $filePcs && $filePcs !== $teaBoxes[$sku]) {
+                $result['problems'][] = "riga {$line} ({$sku}): nel file {$filePcs} pz per scatola, TEA ne ha {$teaBoxes[$sku]}: uso {$teaBoxes[$sku]}";
+            }
+            $perBox = $boxesBySku[$sku] ?? 1;
             $result['rows'][] = [
                 'product_id' => $product->id,
                 'sku' => $product->sku,
@@ -107,6 +126,7 @@ class TeaOrderExcel
                 'stock' => $product->stock_qty,
                 'stock_min' => $product->stock_min,
                 'pcs_per_box' => $perBox,
+                'pcs_from_tea' => isset($teaBoxes[$sku]),
                 'boxes' => $boxes,
             ];
             $result['boxes'] += $boxes;
@@ -132,6 +152,7 @@ class TeaOrderExcel
         return [
             'sku' => $find(['sku', 'codice'], 0),
             'boxes' => $find(['boxes', 'scatole', 'box'], 3),
+            'pcs' => $find(['pcs_per_box', 'pezzi per scatola', 'pz per box'], 2),
         ];
     }
 }

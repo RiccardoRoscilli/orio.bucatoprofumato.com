@@ -21,11 +21,13 @@ class TeaOrderController extends Controller
         // TEA accetta solo scatole intere: pezzi per scatola da teaerp (1 se il prodotto non ha scatola)
         try {
             $boxes = $client->productBoxes();
+            $teaBoxes = $client->teaBoxes();
             $boxesError = null;
         } catch (\RuntimeException $e) {
-            $boxes = [];
+            $boxes = $teaBoxes = [];
             $boxesError = $e->getMessage();
         }
+        $this->teaSkus = array_keys($teaBoxes);
 
         $perBox = fn (Product $p) => $boxes[trim((string) $p->sku)] ?? 1;
         $below = Product::sellable()->belowMinimum()->orderBy('name')->get();
@@ -49,6 +51,7 @@ class TeaOrderController extends Controller
             'open' => $open,
             'suggestions' => $suggestions,
             'boxes' => $boxes,
+            'teaSkus' => array_keys($teaBoxes),
             'boxesError' => $boxesError,
             'withMinimum' => Product::sellable()->whereNotNull('stock_min')->count(),
             'orders' => TeaOrder::where('status', '!=', 'aperto')->withCount('items')->with('user:id,name', 'items', 'ddts.items')->latest('id')->limit(50)->get(),
@@ -169,9 +172,11 @@ class TeaOrderController extends Controller
             'items' => 'present|array|max:500',
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.boxes' => 'required|integer|min:0|max:9999',
+            'items.*.pcs_per_box' => 'nullable|integer|min:1|max:9999',
             'notes' => 'nullable|string|max:500',
         ]);
         $userId = $request->user()->id;
+        $this->rememberPerBox($data['items'], $client);
         // Pezzi indicativi finche' e' aperto: all'invio si ricalcolano con teaerp
         try {
             $perBox = $client->productBoxes();
@@ -228,8 +233,10 @@ class TeaOrderController extends Controller
             'items' => 'required|array|min:1|max:500',
             'items.*.product_id' => 'required|integer|exists:products,id',
             'items.*.boxes' => 'required|integer|min:1|max:9999',
+            'items.*.pcs_per_box' => 'nullable|integer|min:1|max:9999',
             'notes' => 'nullable|string|max:500',
         ], ['items.required' => 'Aggiungi almeno un prodotto.']);
+        $this->rememberPerBox($data['items'], $client);
 
         // I pezzi li calcola il server con le scatole di teaerp, non il browser
         try {
@@ -421,6 +428,31 @@ class TeaOrderController extends Controller
         ]);
     }
 
+    /**
+     * Pezzi per scatola scritti nella riga dell'ordine: si salvano sul prodotto, ma solo dove
+     * teaerp non ha la scatola (quella di teaerp comanda sempre).
+     */
+    private function rememberPerBox(array $items, TeaOrderClient $client): void
+    {
+        $given = collect($items)->filter(fn ($i) => ! empty($i['pcs_per_box']))->pluck('pcs_per_box', 'product_id');
+        if ($given->isEmpty()) {
+            return;
+        }
+        try {
+            $tea = $client->teaBoxes();
+        } catch (\RuntimeException) {
+            return;
+        }
+        foreach (Product::whereIn('id', $given->keys())->get() as $product) {
+            $pcs = (int) $given[$product->id];
+            if (! isset($tea[trim((string) $product->sku)]) && $product->pcs_per_box !== $pcs) {
+                $product->update(['pcs_per_box' => $pcs]);
+            }
+        }
+    }
+
+    private array $teaSkus = [];
+
     private function row(Product $p, int $perBox, int $boxes): array
     {
         return [
@@ -431,6 +463,7 @@ class TeaOrderController extends Controller
             'stock' => $p->stock_qty,
             'stock_min' => $p->stock_min,
             'pcs_per_box' => $perBox,
+            'pcs_from_tea' => in_array(trim((string) $p->sku), $this->teaSkus, true),
             'boxes' => $boxes,
         ];
     }

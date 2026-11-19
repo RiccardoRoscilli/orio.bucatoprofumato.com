@@ -224,7 +224,8 @@ class TeaOrderTest extends TestCase
         $this->assertSame(['sku', 'name', 'pcs_per_box', 'boxes'], $rows[0]);
         $this->assertSame(['LA00012.010', 'Ambra 100', 12, 0], $rows[1]);
         $this->assertSame(['LA00012.050', 'Ambra 500', 6, 0], $rows[2]);
-        $this->assertCount(3, $rows); // XX senza scatola in TEA: fuori dal modello
+        $this->assertSame(['XX888', 'Senza scatola', null, 0], $rows[3]); // senza scatola in TEA: pezzi da scrivere
+        $this->assertCount(4, $rows);
     }
 
     public function test_filled_template_becomes_order_rows_in_boxes(): void
@@ -246,6 +247,39 @@ class TeaOrderTest extends TestCase
         $this->assertSame([3, 13], [$data['boxes'], $data['pieces']]);
         $this->assertCount(2, $data['problems']);
         $this->assertSame(0, TeaOrder::count()); // il file prepara l'ordine, non lo invia
+    }
+
+    public function test_pieces_per_box_missing_in_tea_are_learned_from_file_and_rows(): void
+    {
+        $this->fakeBoxes();
+        $card = Product::create(['sku' => 'LA00632CA', 'name' => 'Card', 'price_cents' => 100, 'vat_rate' => 22, 'active' => true, 'in_stock' => true]);
+
+        // Dal file: la card (che TEA non ha a scatole) da 10; l'Ambra 500 nel file dice 4 ma TEA ne ha 6
+        $data = $this->actingAs($this->admin)->post('/ordini-tea/excel', ['file' => $this->excel([
+            ['LA00632CA', 'Card', 10, 1],
+            ['LA00012.050', 'Ambra 500', 4, 2],
+        ])], ['Accept' => 'application/json'])->assertOk()->json();
+
+        $this->assertSame([['LA00632CA', 1, 10, false], ['LA00012.050', 2, 6, true]],
+            array_map(fn ($r) => [$r['sku'], $r['boxes'], $r['pcs_per_box'], $r['pcs_from_tea']], $data['rows']));
+        $this->assertSame([1, 22], [$data['learned'], $data['pieces']]);
+        $this->assertStringContainsString('TEA ne ha 6', $data['problems'][0]);
+        $this->assertSame(10, $card->fresh()->pcs_per_box);
+        $this->assertNull($this->low->fresh()->pcs_per_box);
+
+        // Nella riga dell'ordine: si corregge solo dove TEA non ha la scatola
+        $this->putJson('/ordini-tea/in-preparazione', ['items' => [
+            ['product_id' => $card->id, 'boxes' => 2, 'pcs_per_box' => 12],
+            ['product_id' => $this->low->id, 'boxes' => 1, 'pcs_per_box' => 99],
+        ]])->assertOk();
+        $this->assertSame(12, $card->fresh()->pcs_per_box);
+        $this->assertNull($this->low->fresh()->pcs_per_box);
+        $this->assertEquals([$card->id => 24, $this->low->id => 6], TeaOrder::open()->items()->pluck('qty', 'product_id')->all());
+
+        // Riaperta la pagina, la card ha 12 pezzi modificabili, l'Ambra 6 fissi da TEA
+        $rows = $this->get('/ordini-tea')->viewData('proposal')->keyBy('sku');
+        $this->assertSame([12, false], [$rows['LA00632CA']['pcs_per_box'], $rows['LA00632CA']['pcs_from_tea']]);
+        $this->assertSame([6, true], [$rows['LA00012.050']['pcs_per_box'], $rows['LA00012.050']['pcs_from_tea']]);
     }
 
     public function test_import_reports_teaerp_unreachable(): void

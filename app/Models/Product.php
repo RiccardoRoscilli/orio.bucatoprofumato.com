@@ -10,7 +10,7 @@ class Product extends Model
 {
     protected $fillable = [
         'sku', 'ean', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
-        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'stock_min', 'reorder_qty', 'in_stock', 'synced_at',
+        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'stock_min', 'reorder_qty', 'pcs_per_box', 'in_stock', 'synced_at',
     ];
 
     protected $casts = [

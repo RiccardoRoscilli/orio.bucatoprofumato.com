@@ -29,13 +29,28 @@ class TeaOrderClient
     }
 
     /**
-     * Pezzi per scatola di ogni prodotto TEA (servizio product-boxes di teaerp per ordinare a
-     * scatole), per SKU. Tenuto un'ora in memoria: cambia di rado.
+     * Pezzi per scatola di ogni prodotto, per SKU: quelli di teaerp e, per i prodotti che in
+     * teaerp non hanno la scatola, quelli scritti in Orio (Excel dell'ordine o riga dell'ordine).
      *
      * @return array<string, int>
      * @throws \RuntimeException se teaerp non risponde
      */
     public function productBoxes(): array
+    {
+        $own = \App\Models\Product::whereNotNull('sku')->where('pcs_per_box', '>', 0)->pluck('pcs_per_box', 'sku')
+            ->mapWithKeys(fn ($pcs, $sku) => [trim($sku) => (int) $pcs])->all();
+
+        return $this->teaBoxes() + $own;
+    }
+
+    /**
+     * Solo i pezzi per scatola registrati in teaerp (servizio product-boxes), per SKU: questi
+     * comandano e in Orio non si cambiano. Tenuti un'ora in memoria: cambiano di rado.
+     *
+     * @return array<string, int>
+     * @throws \RuntimeException se teaerp non risponde
+     */
+    public function teaBoxes(): array
     {
         return \Illuminate\Support\Facades\Cache::remember('tea.product_boxes', now()->addHour(), function () {
             $result = $this->request('get', '/api/emmycasa/product-boxes');

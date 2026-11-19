@@ -38,7 +38,7 @@
         </div>
     @endif
 
-    <div x-data="teaOrder(@js($proposal), @js((object) $boxes), @js($open ? ['notes' => $open->notes, 'saved_at' => $open->updated_at->format('d/m H:i'), 'by' => $open->editor?->name] : null), @js($suggestions))" class="mb-8 grid gap-5 lg:grid-cols-[1fr_340px]">
+    <div x-data="teaOrder(@js($proposal), @js((object) $boxes), @js($open ? ['notes' => $open->notes, 'saved_at' => $open->updated_at->format('d/m H:i'), 'by' => $open->editor?->name] : null), @js($suggestions), @js($teaSkus))" class="mb-8 grid gap-5 lg:grid-cols-[1fr_340px]">
         <section class="space-y-4">
             <div class="card p-4">
                 <div class="relative">
@@ -57,7 +57,7 @@
                 </div>
             </div>
 
-            <div class="card overflow-hidden">
+            <div class="card overflow-x-auto">
                 <div class="flex items-baseline justify-between px-4 py-3">
                     <h2 class="font-bold">Da ordinare <span class="font-normal text-stone-500" x-show="rows.length" x-text="`· ${rows.length} prodotti, ${totalBoxes} box, ${fmtQty(totalPieces)} pz`"></span></h2>
                     <span class="text-xs" :class="saveState === 'error' ? 'font-semibold text-red-700' : 'text-stone-500'" x-text="saveLabel"></span>
@@ -75,7 +75,12 @@
                                 <td class="px-4 py-2">
                                     <input type="number" min="0" step="1" x-model="row.boxes" class="input py-1.5 text-right tabular-nums" aria-label="Scatole">
                                 </td>
-                                <td class="px-4 py-2 text-right tabular-nums text-stone-500" x-text="row.pcs_per_box"></td>
+                                <td class="px-4 py-2 text-right tabular-nums text-stone-500">
+                                    <span x-show="row.pcs_from_tea" x-text="row.pcs_per_box" title="Pezzi per scatola registrati in TEA"></span>
+                                    <input x-show="!row.pcs_from_tea" type="number" min="1" step="1" x-model.number="row.pcs_per_box" @change="setPerBox(row)"
+                                           class="input ml-auto w-20 min-w-16 py-1.5 text-right tabular-nums" :class="row.pcs_per_box > 1 ? '' : 'ring-2 ring-amber-300'"
+                                           title="TEA non ha la scatola di questo prodotto: scrivi quanti pezzi contiene" aria-label="Pezzi per scatola">
+                                </td>
                                 <td class="px-4 py-2 text-right font-semibold tabular-nums" x-text="fmtQty(pieces(row))"></td>
                                 <td class="px-2 py-2"><button type="button" class="h-9 w-9 rounded-lg text-xl text-stone-400 hover:bg-red-50 hover:text-red-600" @click="rows.splice(index, 1)" aria-label="Togli">×</button></td>
                             </tr>
@@ -85,6 +90,7 @@
                 </table>
                 <p class="border-t border-stone-100 px-4 py-2 text-xs text-stone-500">
                     L'ordine si salva da solo a ogni modifica e resta aperto, anche per le colleghe, finché qualcuno non lo invia a TEA.
+                    I pezzi per scatola si scrivono solo per i prodotti che TEA non ha a scatole (casella modificabile): Orio li ricorda per i prossimi ordini.
                 </p>
             </div>
 
@@ -127,7 +133,7 @@
 
             <div class="card space-y-3 p-5">
                 <h2 class="font-bold">Ordine da Excel</h2>
-                <p class="text-xs text-stone-500">Nella colonna «boxes» scrivi quante <strong>scatole</strong> ordinare; i pezzi per scatola («pcs_per_box») sono quelli di TEA. Ricaricato, il file riempie l'ordine: controlli e invii come sempre.</p>
+                <p class="text-xs text-stone-500">Nella colonna «boxes» scrivi quante <strong>scatole</strong> ordinare; i pezzi per scatola («pcs_per_box») sono quelli di TEA; dove la cella è vuota (in rosso) scrivili tu, Orio li ricorda. Ricaricato, il file riempie l'ordine: controlli e invii come sempre.</p>
                 <a href="{{ route('tea-orders.template') }}" class="btn-light w-full py-2 text-center">Scarica modello ordine</a>
                 <label class="btn-light block w-full cursor-pointer py-2 text-center" :class="importing && 'pointer-events-none opacity-60'">
                     <span x-text="importing ? 'Lettura del file…' : 'Carica ordine compilato'"></span>

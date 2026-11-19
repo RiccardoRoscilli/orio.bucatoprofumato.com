@@ -84,6 +84,71 @@ class TeaOrderTest extends TestCase
         Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/orio/orders') && $r['reference'] === 'ORIO-' . $order->id);
     }
 
+    public function test_rejected_order_can_be_reopened_fixed_and_sent(): void
+    {
+        $this->fakeBoxes();
+        Http::fakeSequence('teaerp.example/api/orio/*')
+            ->push(['ok' => false, 'error' => ['code' => 'INVALID_ITEMS', 'message' => 'Ordine non creato.', 'details' => ['LA00012.010: prodotto non presente in TEA']]], 422)
+            ->push(['ok' => true, 'created' => true, 'order' => ['increment_id' => 'orio-000009', 'erp_status' => 'Pending', 'subtotal' => 1, 'tax_amount' => 0.22, 'grand_total' => 1.22, 'items' => []]], 201);
+
+        $operator = User::create(['name' => 'Pamela', 'username' => 'pam', 'password' => 'x', 'is_admin' => false, 'active' => true]);
+        $this->actingAs($operator)->postJson('/ordini-tea', ['items' => [['product_id' => $this->low->id, 'boxes' => 1], ['product_id' => $this->ok->id, 'boxes' => 2]]])
+            ->assertStatus(502);
+        $order = TeaOrder::first();
+        $this->get("/ordini-tea/{$order->id}")->assertSee('Modifica l');
+
+        $this->post("/ordini-tea/{$order->id}/modifica")->assertRedirect('/ordini-tea');
+        $this->assertSame('aperto', $order->fresh()->status);
+        $page = $this->get('/ordini-tea')->assertOk()->assertSee('TEA ha rifiutato')->assertSee('togli la riga');
+        $this->assertCount(2, $page->viewData('proposal'));
+
+        // Tolta la riga sbagliata, l'ordine riparte con lo stesso riferimento
+        $this->postJson('/ordini-tea', ['items' => [['product_id' => $this->low->id, 'boxes' => 1]]])->assertOk();
+        $order->refresh();
+        $this->assertSame('inviato', $order->status);
+        $this->assertNull($order->error);
+        $this->assertSame(['LA00012.050'], $order->items->pluck('sku')->all());
+        $this->assertSame($operator->id, $order->user_id);
+    }
+
+    public function test_reopening_merges_into_an_order_already_in_preparation(): void
+    {
+        $rejected = TeaOrder::create(['status' => 'errore', 'user_id' => $this->admin->id, 'error' => 'Ordine non creato. X: prodotto non presente in TEA']);
+        $rejected->items()->create(['product_id' => $this->low->id, 'sku' => $this->low->sku, 'name' => 'Ambra 500', 'boxes' => 1, 'qty' => 6, 'stock_at_order' => 2]);
+        $rejected->items()->create(['product_id' => $this->ok->id, 'sku' => $this->ok->sku, 'name' => 'Ambra 100', 'boxes' => 2, 'qty' => 2, 'stock_at_order' => 3]);
+        $open = TeaOrder::create(['status' => 'aperto', 'user_id' => $this->admin->id]);
+        $open->items()->create(['product_id' => $this->low->id, 'sku' => $this->low->sku, 'name' => 'Ambra 500', 'boxes' => 3, 'qty' => 18, 'stock_at_order' => 2]);
+
+        $this->actingAs($this->admin)->post("/ordini-tea/{$rejected->id}/modifica")->assertRedirect('/ordini-tea');
+
+        $this->assertNull($rejected->fresh());
+        $this->assertEquals([$this->low->id => 4, $this->ok->id => 2], $open->items()->pluck('boxes', 'product_id')->all());
+        $this->assertNotNull($open->fresh()->error);
+    }
+
+    public function test_unsent_orders_can_be_deleted_but_sent_ones_cannot(): void
+    {
+        $rejected = TeaOrder::create(['status' => 'errore', 'user_id' => $this->admin->id]);
+        $rejected->items()->create(['product_id' => $this->low->id, 'sku' => $this->low->sku, 'name' => 'Ambra 500', 'boxes' => 1, 'qty' => 6, 'stock_at_order' => 2]);
+        $open = TeaOrder::create(['status' => 'aperto', 'user_id' => $this->admin->id]);
+        $sent = TeaOrder::create(['status' => 'inviato', 'user_id' => $this->admin->id]);
+        $operator = User::create(['name' => 'Pamela', 'username' => 'pam', 'password' => 'x', 'is_admin' => false, 'active' => true]);
+
+        $this->actingAs($operator)->get('/ordini-tea')->assertSee('Cancella l');
+        $this->delete("/ordini-tea/{$rejected->id}")->assertRedirect('/ordini-tea');
+        $this->delete("/ordini-tea/{$open->id}")->assertRedirect('/ordini-tea');
+        $this->delete("/ordini-tea/{$sent->id}")->assertStatus(422);
+
+        $this->assertSame([$sent->id], TeaOrder::pluck('id')->all());
+        $this->assertSame(0, \App\Models\TeaOrderItem::count());
+    }
+
+    public function test_sent_order_cannot_be_reopened(): void
+    {
+        $sent = TeaOrder::create(['status' => 'inviato', 'user_id' => $this->admin->id]);
+        $this->actingAs($this->admin)->post("/ordini-tea/{$sent->id}/modifica")->assertStatus(422);
+    }
+
     public function test_operator_orders_but_only_admin_sets_minimums(): void
     {
         $this->fakeBoxes();

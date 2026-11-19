@@ -15,6 +15,29 @@
         </p>
     @endif
 
+    @if ($open?->error)
+        @php
+            $rejected = $open->items->filter(fn ($i) => $i->product && $i->sku && str_contains($open->error, $i->sku . ':'));
+        @endphp
+        <div class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-red-800 ring-1 ring-red-200">
+            <div class="font-semibold">TEA ha rifiutato l'ultimo invio di quest'ordine</div>
+            <div class="text-sm">{{ $open->error }}</div>
+            @if ($rejected->isNotEmpty())
+                <ul class="mt-2 space-y-1 text-sm">
+                    @foreach ($rejected as $item)
+                        <li>
+                            <span class="font-mono">{{ $item->sku }}</span> · {{ $item->name }}:
+                            togli la riga qui sotto
+                            @can('admin')
+                                oppure <a href="{{ route('products.edit', $item->product_id) }}" class="font-semibold underline">correggi il codice del prodotto</a> con quello di TEA
+                            @endcan
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    @endif
+
     <div x-data="teaOrder(@js($proposal), @js((object) $boxes), @js($open ? ['notes' => $open->notes, 'saved_at' => $open->updated_at->format('d/m H:i'), 'by' => $open->editor?->name] : null), @js($suggestions))" class="mb-8 grid gap-5 lg:grid-cols-[1fr_340px]">
         <section class="space-y-4">
             <div class="card p-4">
@@ -92,6 +115,14 @@
                 <input x-model="notes" maxlength="500" class="input" placeholder="Nota interna (es. riassortimento di novembre)">
                 <p x-show="error" x-text="error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
                 <button type="button" class="btn-primary w-full py-4 text-lg" :disabled="busy || !rows.length" @click="send()" x-text="busy ? 'Invio a TEA…' : 'Invia l\'ordine a TEA'"></button>
+                @if ($open)
+                    <form method="POST" action="{{ route('tea-orders.destroy', $open) }}" class="text-center"
+                          data-confirm="Cancellare l'ordine in preparazione? Le righe si perdono per tutti." data-confirm-label="Cancella" data-confirm-danger>
+                        @csrf
+                        @method('DELETE')
+                        <button class="text-sm font-semibold text-red-700 hover:text-red-900" :disabled="busy">Cancella l'ordine</button>
+                    </form>
+                @endif
             </div>
 
             <div class="card space-y-3 p-5">

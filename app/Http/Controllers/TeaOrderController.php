@@ -261,6 +261,48 @@ class TeaOrderController extends Controller
         return $this->deliver($teaOrder, $client);
     }
 
+    /**
+     * Un ordine rifiutato da TEA (es. un codice che TEA non conosce) torna in preparazione per
+     * correggerlo e reinviarlo. Se intanto ne e' stato aperto un altro, le righe si uniscono a quello.
+     */
+    public function reopen(Request $request, TeaOrder $teaOrder)
+    {
+        abort_if(in_array($teaOrder->status, ['inviato', 'aperto'], true), 422, 'Questo ordine non si può modificare.');
+
+        DB::transaction(function () use ($request, $teaOrder) {
+            $userId = $request->user()->id;
+            $open = TeaOrder::open();
+            if (! $open) {
+                $teaOrder->update(['status' => 'aperto', 'updated_by' => $userId]);
+
+                return;
+            }
+            foreach ($teaOrder->items as $item) {
+                $same = $open->items()->where('product_id', $item->product_id)->first();
+                $same ? $same->update(['boxes' => $same->boxes + $item->boxes, 'qty' => $same->qty + $item->qty])
+                      : $item->update(['tea_order_id' => $open->id]);
+            }
+            $open->update(['error' => $teaOrder->error, 'updated_by' => $userId, 'notes' => $open->notes ?: $teaOrder->notes]);
+            $teaOrder->items()->delete();
+            $teaOrder->delete();
+        });
+
+        return redirect()->route('tea-orders.index')->with('status', "Ordine riaperto: correggi le righe e invialo di nuovo.");
+    }
+
+    /** Cancella un ordine mai arrivato a TEA (in preparazione o rifiutato). */
+    public function destroy(TeaOrder $teaOrder)
+    {
+        abort_if($teaOrder->status === 'inviato', 422, 'Ordine già inviato a TEA: non si può cancellare.');
+
+        DB::transaction(function () use ($teaOrder) {
+            $teaOrder->items()->delete();
+            $teaOrder->delete();
+        });
+
+        return redirect()->route('tea-orders.index')->with('status', 'Ordine cancellato.');
+    }
+
     public function refresh(TeaOrder $teaOrder, TeaOrderClient $client)
     {
         abort_unless($teaOrder->status === 'inviato', 422, 'Ordine non ancora inviato.');

@@ -154,7 +154,17 @@
                 @if ($order->status === 'inviato')
                     <button class="btn-light w-full" :disabled="busy" @click="post('{{ route('tea-orders.refresh', $order) }}')">Aggiorna stato e DDT da teaerp</button>
                 @else
-                    <button class="btn-primary w-full" :disabled="busy" @click="post('{{ route('tea-orders.resend', $order) }}')">Riprova l'invio a TEA</button>
+                    <form method="POST" action="{{ route('tea-orders.reopen', $order) }}">
+                        @csrf
+                        <button class="btn-primary w-full" :disabled="busy">Modifica l'ordine</button>
+                    </form>
+                    <button class="btn-light w-full" :disabled="busy" @click="post('{{ route('tea-orders.resend', $order) }}')">Riprova l'invio così com'è</button>
+                    <form method="POST" action="{{ route('tea-orders.destroy', $order) }}" class="pt-2 text-center"
+                          data-confirm="Cancellare l'ordine con {{ $order->items->count() }} righe? Non è mai arrivato a TEA." data-confirm-label="Cancella" data-confirm-danger>
+                        @csrf
+                        @method('DELETE')
+                        <button class="text-sm font-semibold text-red-700 hover:text-red-900">Cancella l'ordine</button>
+                    </form>
                 @endif
                 <p x-show="msg" x-text="msg" class="text-sm text-stone-600"></p>
             </div>

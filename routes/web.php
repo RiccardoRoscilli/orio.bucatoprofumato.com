@@ -70,6 +70,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/ordini-tea/modello', [\App\Http\Controllers\TeaOrderController::class, 'orderTemplate'])->name('tea-orders.template');
     Route::post('/ordini-tea/excel', [\App\Http\Controllers\TeaOrderController::class, 'orderImport'])->name('tea-orders.import');
     Route::get('/ordini-tea/{teaOrder}', [\App\Http\Controllers\TeaOrderController::class, 'show'])->whereNumber('teaOrder')->name('tea-orders.show');
+    Route::delete('/ordini-tea/{teaOrder}', [\App\Http\Controllers\TeaOrderController::class, 'destroy'])->whereNumber('teaOrder')->name('tea-orders.destroy');
+    Route::post('/ordini-tea/{teaOrder}/modifica', [\App\Http\Controllers\TeaOrderController::class, 'reopen'])->name('tea-orders.reopen');
     Route::post('/ordini-tea/{teaOrder}/invia', [\App\Http\Controllers\TeaOrderController::class, 'resend'])->name('tea-orders.resend');
     Route::post('/ordini-tea/ddt/{ddt}/conferma', [\App\Http\Controllers\TeaOrderController::class, 'confirmDdt'])->name('tea-ddts.confirm');
     Route::post('/ordini-tea/ddt-righe/{item}', [\App\Http\Controllers\TeaOrderController::class, 'receive'])->name('tea-ddt-items.receive');

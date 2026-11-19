@@ -44,7 +44,7 @@ class TeaOrderClient
     }
 
     /**
-     * Solo i pezzi per scatola registrati in teaerp (servizio product-boxes), per SKU: questi
+     * Solo i pezzi per scatola registrati in teaerp (anche di prodotti disattivati), per SKU: questi
      * comandano e in Orio non si cambiano. Tenuti un'ora in memoria: cambiano di rado.
      *
      * @return array<string, int>
@@ -53,7 +53,11 @@ class TeaOrderClient
     public function teaBoxes(): array
     {
         return \Illuminate\Support\Facades\Cache::remember('tea.product_boxes', now()->addHour(), function () {
-            $result = $this->request('get', '/api/emmycasa/product-boxes');
+            // Servizio di Orio (tutte le scatole, come il template di teaerp); il vecchio solo se manca
+            $result = $this->request('get', '/api/orio/product-boxes');
+            if ($result['status'] === 404) {
+                $result = $this->request('get', '/api/emmycasa/product-boxes');
+            }
             if (! $result['ok']) {
                 throw new \RuntimeException('teaerp non ha dato i pezzi per scatola: ' . $result['message']);
             }

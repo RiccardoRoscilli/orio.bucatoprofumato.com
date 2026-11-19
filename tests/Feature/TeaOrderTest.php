@@ -67,7 +67,7 @@ class TeaOrderTest extends TestCase
     public function test_rejected_order_is_kept_and_can_be_resent_with_same_reference(): void
     {
         $this->fakeBoxes();
-        Http::fakeSequence('teaerp.example/api/orio/*')
+        Http::fakeSequence('teaerp.example/api/orio/orders*')
             ->push(['ok' => false, 'error' => ['code' => 'INVALID_ITEMS', 'message' => 'Ordine non creato.', 'details' => ['LA00012.050: nessun prezzo nel listino']]], 422)
             ->push(['ok' => true, 'created' => true, 'order' => ['increment_id' => 'orio-000008', 'erp_status' => 'Pending', 'subtotal' => 1, 'tax_amount' => 0.22, 'grand_total' => 1.22, 'items' => []]], 201);
 
@@ -87,7 +87,7 @@ class TeaOrderTest extends TestCase
     public function test_rejected_order_can_be_reopened_fixed_and_sent(): void
     {
         $this->fakeBoxes();
-        Http::fakeSequence('teaerp.example/api/orio/*')
+        Http::fakeSequence('teaerp.example/api/orio/orders*')
             ->push(['ok' => false, 'error' => ['code' => 'INVALID_ITEMS', 'message' => 'Ordine non creato.', 'details' => ['LA00012.010: prodotto non presente in TEA']]], 422)
             ->push(['ok' => true, 'created' => true, 'order' => ['increment_id' => 'orio-000009', 'erp_status' => 'Pending', 'subtotal' => 1, 'tax_amount' => 0.22, 'grand_total' => 1.22, 'items' => []]], 201);
 
@@ -195,7 +195,7 @@ class TeaOrderTest extends TestCase
 
     private function fakeBoxes(): void
     {
-        Http::fake(['teaerp.example/api/emmycasa/product-boxes' => Http::response(['ok' => true, 'products' => [
+        Http::fake(['teaerp.example/api/orio/product-boxes' => Http::response(['ok' => true, 'products' => [
             ['sku' => 'LA00012.050', 'box_ean' => '8000000000001', 'pezzi_per_box' => 6],
             ['sku' => 'LA00012.010', 'box_ean' => '8000000000002', 'pezzi_per_box' => 12],
         ]])]);

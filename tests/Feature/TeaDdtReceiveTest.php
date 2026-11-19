@@ -36,10 +36,10 @@ class TeaDdtReceiveTest extends TestCase
         $second = ['ddt_number' => 'VE-00015/2026', 'issued_at' => '2026-11-22', 'is_fully_shipped' => true, 'items' => [
             ['sku' => 'LA00087.050', 'name' => 'Lavanda 500', 'qty_shipped' => 6],
         ]];
-        Http::fake(['teaerp.example/api/emmycasa/product-boxes' => Http::response(['ok' => true, 'products' => [
+        Http::fake(['teaerp.example/api/orio/product-boxes' => Http::response(['ok' => true, 'products' => [
             ['sku' => 'LA00012.050', 'pezzi_per_box' => 12], ['sku' => 'LA00087.050', 'pezzi_per_box' => 6],
         ]])]);
-        Http::fakeSequence('teaerp.example/api/orio/*')
+        Http::fakeSequence('teaerp.example/api/orio/orders*')
             ->push($this->teaOrder([]))           // apertura: niente DDT ancora
             ->push($this->teaOrder([$first]))     // aggiorna: primo DDT
             ->push($this->teaOrder([$first, $second])); // aggiorna: spedizione parziale successiva

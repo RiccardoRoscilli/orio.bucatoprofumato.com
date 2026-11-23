@@ -21,6 +21,8 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    // Pagina senza link nel menu: per cambiare utente sul tablet dove la cassa resta collegata
+    Route::view('/esci', 'auth.logout')->name('logout.page');
 
     Route::get('/', [SaleController::class, 'cassa'])->name('cassa');
 

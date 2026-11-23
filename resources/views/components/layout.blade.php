@@ -61,18 +61,21 @@
                     </div>
                 @endif
                 <div class="ml-auto flex shrink-0 items-center gap-3 text-sm">
-                    @if (config('orio.vne.driver') === 'fake')
+                    @if (config('orio.vne.driver') === 'fake' && ! config('orio.recording'))
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">VNE simulata</span>
                     @endif
-                    @if (config('orio.fiscal_printer.driver') === 'fake')
+                    @if (config('orio.fiscal_printer.driver') === 'fake' && ! config('orio.recording'))
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">Stampante simulata</span>
                     @endif
                     <x-support-button />
                     <span class="hidden text-stone-500 lg:inline">{{ auth()->user()->name }}</span>
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button class="rounded-lg px-3 py-2 font-semibold text-stone-600 hover:bg-stone-100">Esci</button>
-                    </form>
+                    {{-- Solo l'admin esce dal menu: la cassa resta collegata (per cambiare utente sul tablet: /esci) --}}
+                    @can('admin')
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button class="rounded-lg px-3 py-2 font-semibold text-stone-600 hover:bg-stone-100">Esci</button>
+                        </form>
+                    @endcan
                 </div>
             </div>
         </header>

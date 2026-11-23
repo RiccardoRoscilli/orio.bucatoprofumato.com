@@ -166,7 +166,10 @@
                     <button type="button" class="btn-light py-4" :disabled="!canPay" @click="pay('pos')">
                         Carta / Bancomat <span x-text="posTerminals.length > 1 ? `· ${terminalName}` : '(POS)'"></span>
                     </button>
-                    <button type="button" class="py-1 text-sm font-semibold text-brand-700 disabled:text-stone-400" :disabled="!canPay" @click="openSplit()">Dividi il pagamento (due carte, carta + contanti)</button>
+                    <button type="button" class="btn-light flex-col gap-0 py-2.5" :disabled="!canPay" @click="openSplit()">
+                        <span>Dividi il pagamento</span>
+                        <span class="text-xs font-normal text-stone-500">più carte, carte e contanti</span>
+                    </button>
                 </div>
                 @if (count($posTerminals) > 1)
                     <div class="mt-4">
@@ -185,7 +188,7 @@
 
         {{-- Finestra incasso: VNE (contanti), POS (carta), esito --}}
         <div x-show="modal" x-cloak class="fixed inset-0 z-30 flex items-center justify-center bg-stone-900/50 p-4">
-            <div class="card w-full max-w-md p-6 shadow-xl" @click.stop>
+            <div class="card max-h-full w-full max-w-md overflow-y-auto p-6 shadow-xl" @click.stop>
                 <template x-if="modal === 'payment'">
                     <div>
                         <div class="text-sm font-semibold uppercase tracking-wide text-stone-500" x-text="payment.method === 'carta' ? 'Pagamento con carta sulla cassa' : 'Pagamento in contanti sulla cassa'"></div>
@@ -389,24 +392,20 @@
                             <div class="py-8 text-lg font-semibold text-stone-500">Emissione documento…</div>
                         </template>
                         <template x-if="result?.type === 'scontrino'">
-                            <div>
+                            {{-- Un'anteprima sola (stampante simulata): dopo la cortesia mostra quella --}}
+                            <div x-data="{ printing: false, note: null, courtesy: null }">
                                 <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand-50 text-3xl text-brand-600">✓</div>
                                 <div class="mt-3 text-xl font-bold">Scontrino emesso</div>
                                 <div class="mt-1 text-stone-500" x-text="`Documento commerciale n. ${result.sale.receipt_number}`"></div>
-                                <template x-if="result.previewUrl">
-                                    <iframe :src="result.previewUrl" class="mt-4 h-72 w-full rounded-xl bg-stone-100 ring-1 ring-stone-200"></iframe>
+                                <button type="button" class="btn-light mt-4 w-full" :disabled="printing"
+                                        @click="printing = true; note = null; printCourtesy(result.sale.id)
+                                            .then((r) => { courtesy = r.previewUrl ?? null; note = r.previewUrl ? null : 'Scontrino di cortesia stampato.'; })
+                                            .catch((e) => note = e.response?.data?.message ?? e.message).finally(() => printing = false)"
+                                        x-text="printing ? 'Stampa…' : 'Scontrino di cortesia'"></button>
+                                <p x-show="note" x-text="note" class="mt-2 text-sm text-stone-600"></p>
+                                <template x-if="courtesy || result.previewUrl">
+                                    <iframe :src="courtesy || result.previewUrl" class="mt-3 h-56 w-full rounded-xl bg-stone-100 ring-1 ring-stone-200"></iframe>
                                 </template>
-                                <div class="mt-4" x-data="{ printing: false, note: null, preview: null }">
-                                    <button type="button" class="btn-light w-full" :disabled="printing"
-                                            @click="printing = true; note = null; printCourtesy(result.sale.id)
-                                                .then((r) => { preview = r.previewUrl ?? null; note = r.previewUrl ? null : 'Scontrino di cortesia stampato.'; })
-                                                .catch((e) => note = e.response?.data?.message ?? e.message).finally(() => printing = false)"
-                                            x-text="printing ? 'Stampa…' : 'Scontrino di cortesia'"></button>
-                                    <p x-show="note" x-text="note" class="mt-2 text-sm text-stone-600"></p>
-                                    <template x-if="preview">
-                                        <iframe :src="preview" class="mt-3 h-72 w-full rounded-xl bg-stone-100 ring-1 ring-stone-200"></iframe>
-                                    </template>
-                                </div>
                             </div>
                         </template>
                         <template x-if="result?.type === 'fattura'">

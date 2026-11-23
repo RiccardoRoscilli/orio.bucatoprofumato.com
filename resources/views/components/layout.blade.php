@@ -61,10 +61,10 @@
                     </div>
                 @endif
                 <div class="ml-auto flex shrink-0 items-center gap-3 text-sm">
-                    @if (config('orio.vne.driver') === 'fake' && ! config('orio.recording'))
+                    @if (config('orio.vne.driver') === 'fake')
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">VNE simulata</span>
                     @endif
-                    @if (config('orio.fiscal_printer.driver') === 'fake' && ! config('orio.recording'))
+                    @if (config('orio.fiscal_printer.driver') === 'fake')
                         <span class="badge hidden whitespace-nowrap bg-amber-100 text-amber-800 xl:inline-flex">Stampante simulata</span>
                     @endif
                     <x-support-button />

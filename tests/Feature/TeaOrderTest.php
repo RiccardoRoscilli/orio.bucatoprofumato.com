@@ -177,7 +177,7 @@ class TeaOrderTest extends TestCase
         $page = $this->actingAs($this->admin)->get('/ordini-tea')->assertOk();
         $this->assertSame([[$this->ok->id, 10, 12]], $page->viewData('proposal')->map(fn ($r) => [$r['product_id'], $r['boxes'], $r['pcs_per_box']])->all());
         $this->assertSame(['Ambra 500'], $page->viewData('suggestions')->pluck('description')->all());
-        $this->assertCount(0, $page->viewData('orders'));
+        $this->assertCount(0, $this->get('/ordini-tea/inviati')->assertOk()->viewData('orders'));
         $this->get("/ordini-tea/{$open->id}")->assertRedirect('/ordini-tea');
 
         // Ne aggiunge e invia: e' lo stesso ordine, ora inviato a suo nome

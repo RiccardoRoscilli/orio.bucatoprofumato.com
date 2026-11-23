@@ -26,13 +26,15 @@
                     <img src="{{ asset('images/logo-elda.png') }}" alt="Le Essenze di Elda" class="h-8 w-auto">
                 </a>
                 @php
-                    $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'tea-orders.index' => 'Ordini TEA', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
+                    $nav = ['cassa' => 'Cassa', 'sales.index' => 'Vendite', 'products.index' => 'Prodotti', 'stock.index' => 'Magazzino', 'tea-orders.index' => 'Nuovo ordine TEA', 'tea-orders.sent' => 'Ordini inviati', 'customers.index' => 'Clienti', 'closure' => 'Chiusura'];
                     // Voci dell'admin raccolte in un menu, per non allargare la barra.
                     // La prova della stampante si apre dalla Configurazione; OpenAPI non ha voce (dati solo per la rifatturazione)
                     $adminNav = auth()->user()->can('admin')
                         ? ['attendances.index' => 'Presenze', 'badges.index' => 'Badge', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
                         : [];
-                    $isActive = fn ($route) => request()->routeIs(str_replace('.index', '.*', $route));
+                    // Ordini TEA: due voci, il nuovo ordine e lo storico (con il dettaglio di ogni ordine)
+                    $activeRoutes = ['tea-orders.index' => ['tea-orders.index'], 'tea-orders.sent' => ['tea-orders.sent', 'tea-orders.show']];
+                    $isActive = fn ($route) => request()->routeIs(...($activeRoutes[$route] ?? [str_replace('.index', '.*', $route)]));
                     $adminActive = collect(array_keys($adminNav))->contains($isActive) || request()->routeIs('fiscal-printer');
                 @endphp
                 {{-- Su schermi stretti le voci scorrono di lato invece di allargare la pagina --}}

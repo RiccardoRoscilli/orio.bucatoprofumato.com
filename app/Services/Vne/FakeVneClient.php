@@ -26,6 +26,11 @@ class FakeVneClient extends VneClient
             5 => $this->pendingList(),
             20 => $this->machineStatus(),
             60 => $this->cashClosure(),
+            92 => ['tipo' => 92, 'req_status' => 1] + array_diff_key($this->machineStatus(), ['tipo' => 1]),
+            30 => $this->fakeRefillStart(),
+            31 => $this->fakeRefillEnd(),
+            33 => $this->fakeRefillPoll(),
+            93 => ['tipo' => 93, 'req_status' => 1],
             default => ['tipo' => $payload['tipo'], 'req_status' => 2, 'mess' => 101],
         };
     }
@@ -159,6 +164,37 @@ class FakeVneClient extends VneClient
             : ['tipo' => 5, 'list_length' => 0];
     }
 
+    /** Refill simulato: entra una moneta da 2 € ogni secondo. */
+    private function fakeRefillStart(): array
+    {
+        Cache::put('vne_fake:refill', ['started' => now()->getPreciseTimestamp(3) / 1000, 'ended' => null], now()->addDay());
+
+        return ['tipo' => 30, 'req_status' => 1];
+    }
+
+    private function fakeRefillEnd(): array
+    {
+        $refill = Cache::get('vne_fake:refill');
+        if ($refill && ! $refill['ended']) {
+            $refill['ended'] = now()->getPreciseTimestamp(3) / 1000;
+            Cache::put('vne_fake:refill', $refill, now()->addDay());
+            Cache::increment('vne_fake:loaded', (int) floor($refill['ended'] - $refill['started']) * 200);
+        }
+
+        return ['tipo' => 31, 'req_status' => 1];
+    }
+
+    private function fakeRefillPoll(): array
+    {
+        $refill = Cache::get('vne_fake:refill');
+        if (! $refill) {
+            return ['tipo' => 33, 'req_status' => 1, 'refillOn' => 0, 'amountRefill' => 0];
+        }
+        $seconds = ($refill['ended'] ?? now()->getPreciseTimestamp(3) / 1000) - $refill['started'];
+
+        return ['tipo' => 33, 'req_status' => 1, 'refillOn' => $refill['ended'] ? 0 : 1, 'amountRefill' => (int) floor($seconds) * 200];
+    }
+
     private function machineStatus(): array
     {
         return [
@@ -170,6 +206,7 @@ class FakeVneClient extends VneClient
                 'banconota_3' => ['valore' => 2000, 'quantita' => 12, 'alert' => 0, 'min_level' => 10, 'max_level' => 60],
                 'banconota_4' => ['valore' => 5000, 'quantita' => 0, 'alert' => 2, 'min_level' => 0, 'max_level' => 30],
                 'stacker' => 34000,
+                'detailNotesStacker' => ['500' => 0, '1000' => 14, '2000' => 5, '5000' => 2, '10000' => 0],
                 'totalInRecycle' => 40500,
             ],
             'hopper' => [
@@ -179,8 +216,9 @@ class FakeVneClient extends VneClient
                 'moneta_50' => 18, 'moneta_50_alert' => 1,
                 'moneta_100' => 120, 'moneta_100_alert' => 0,
                 'moneta_200' => 90, 'moneta_200_alert' => 0,
-                'totalInRecycle' => 46100,
+                'totalInRecycle' => 46100 + (int) Cache::get('vne_fake:loaded', 0),
                 'stacker' => 1250,
+                'moneta_50_cashbox' => 5, 'moneta_100_cashbox' => 4, 'moneta_200_cashbox' => 3,
             ],
         ];
     }

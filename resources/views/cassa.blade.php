@@ -396,6 +396,17 @@
                                 <template x-if="result.previewUrl">
                                     <iframe :src="result.previewUrl" class="mt-4 h-72 w-full rounded-xl bg-stone-100 ring-1 ring-stone-200"></iframe>
                                 </template>
+                                <div class="mt-4" x-data="{ printing: false, note: null, preview: null }">
+                                    <button type="button" class="btn-light w-full" :disabled="printing"
+                                            @click="printing = true; note = null; printCourtesy(result.sale.id)
+                                                .then((r) => { preview = r.previewUrl ?? null; note = r.previewUrl ? null : 'Scontrino di cortesia stampato.'; })
+                                                .catch((e) => note = e.response?.data?.message ?? e.message).finally(() => printing = false)"
+                                            x-text="printing ? 'Stampa…' : 'Scontrino di cortesia'"></button>
+                                    <p x-show="note" x-text="note" class="mt-2 text-sm text-stone-600"></p>
+                                    <template x-if="preview">
+                                        <iframe :src="preview" class="mt-3 h-72 w-full rounded-xl bg-stone-100 ring-1 ring-stone-200"></iframe>
+                                    </template>
+                                </div>
                             </div>
                         </template>
                         <template x-if="result?.type === 'fattura'">

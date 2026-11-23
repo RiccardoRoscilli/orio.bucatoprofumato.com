@@ -54,9 +54,16 @@ class TeaOrderController extends Controller
             'teaSkus' => array_keys($teaBoxes),
             'boxesError' => $boxesError,
             'withMinimum' => Product::sellable()->whereNotNull('stock_min')->count(),
-            'orders' => TeaOrder::where('status', '!=', 'aperto')->withCount('items')->with('user:id,name', 'items', 'ddts.items')->latest('id')->limit(50)->get(),
             'configured' => (bool) (config('orio.tea.url') && config('orio.tea.user') && config('orio.tea.password')),
             'shipping' => config('orio.tea.shipping'),
+        ]);
+    }
+
+    /** Ordini inviati (o rifiutati) a TEA, con lo stato dell'arrivo della merce. */
+    public function sent()
+    {
+        return view('tea-orders.sent', [
+            'orders' => TeaOrder::where('status', '!=', 'aperto')->withCount('items')->with('user:id,name', 'items', 'ddts.items')->latest('id')->paginate(50),
         ]);
     }
 

@@ -133,6 +133,83 @@
                     Con <strong>https</strong>: sul tablet apri <span class="font-mono">https://IP-del-cassetto/selfcashapi/</span> e accetta il certificato ("Avanzate" → "Procedi"; se non c'è, tocca la pagina e scrivi <span class="font-mono">thisisunsafe</span>). Chrome però lo dimentica dopo qualche giorno.
                     Con <strong>http</strong> non serve: aggiungi <span class="font-mono">http://IP-del-cassetto</span> in <span class="font-mono">chrome://flags</span> → "Insecure origins treated as secure", insieme alla stampante, separati da virgola.
                 </p>
+
+                {{-- Caricamento del fondo cassa (popup): il denaro entra dalle fessure e lo conta la macchina --}}
+                <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-stone-200 pt-4 text-sm" x-data="vneRefill(@js([
+                        'start' => route('settings.refill.start'),
+                        'status' => route('settings.refill.status'),
+                        'end' => route('settings.refill.end'),
+                        'confirm' => route('settings.refill.confirm'),
+                    ]))">
+                    <button type="button" class="btn-light py-2" @click="open = true">Carica fondo cassa…</button>
+
+                    {{-- Contenuto della cassa per taglio (stato tipo 20), letto quando si apre il popup --}}
+                    <div class="contents" x-data="{ open: false, html: null, error: null, loading: false,
+                            load() { this.loading = true; this.error = null;
+                                axios.post(@js(route('closure.vne-status'))).then(r => this.html = r.data)
+                                    .catch(e => this.error = e.response?.data?.message ?? e.message).finally(() => this.loading = false) } }">
+                        <button type="button" class="btn-light py-2" @click="open = true; load()">Contenuto della cassa…</button>
+
+                        <div x-show="open" x-cloak class="fixed inset-0 z-40 flex items-center justify-center bg-stone-900/50 p-3 sm:p-4"
+                             @click.self="open = false" @keydown.escape.window="open = false">
+                            <div class="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5">
+                                <div class="mb-3 flex items-center justify-between gap-3">
+                                    <h3 class="text-lg font-bold">Contenuto della cassa</h3>
+                                    <div class="flex items-center gap-3">
+                                        <button type="button" class="text-sm font-semibold text-brand-700" @click="load()" :disabled="loading">Aggiorna</button>
+                                        <button type="button" class="text-2xl leading-none text-stone-400 hover:text-stone-700" @click="open = false" aria-label="Chiudi">&times;</button>
+                                    </div>
+                                </div>
+                                <p x-show="loading" class="text-sm text-stone-500">Lettura dalla cassa…</p>
+                                <p x-show="error" x-text="error" class="rounded-lg bg-red-50 p-3 text-sm text-red-700"></p>
+                                <div x-show="!loading" x-html="html"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="open" x-cloak class="fixed inset-0 z-40 flex items-center justify-center bg-stone-900/50 p-3 sm:p-4"
+                         @click.self="close()" @keydown.escape.window="close()">
+                        <div class="card w-full max-w-lg p-5">
+                            <div class="mb-2 flex items-start justify-between gap-3">
+                                <h3 class="text-lg font-bold">Carica fondo cassa</h3>
+                                <button type="button" class="text-2xl leading-none text-stone-400 hover:text-stone-700" @click="close()" :disabled="busy()" aria-label="Chiudi">&times;</button>
+                            </div>
+                            <p class="mb-4 text-sm text-stone-500">
+                                A cassa ferma (prima dell'apertura o dopo la chiusura della giornata). Premi «Inizia», inserisci il denaro nelle fessure come un cliente,
+                                poi «Fine caricamento»: la cassa conta da sola e quello che contiene diventa il fondo cassa.
+                                Le banconote di tagli che la cassa non usa per il resto vengono restituite.
+                            </p>
+
+                            <div class="flex flex-wrap items-end gap-3" x-show="state === 'idle' || state === 'starting'">
+                                <label class="block">
+                                    <span class="mb-1 block text-sm font-semibold">Fondo cassa (€)</span>
+                                    <input type="number" min="1" max="20000" step="1" x-model="pettyCash" class="input w-36" placeholder="es. 300"
+                                           @keydown.enter.prevent="start()">
+                                </label>
+                                <button type="button" class="btn-primary py-2" :disabled="state === 'starting'" @click="start()">
+                                    <span x-text="state === 'starting' ? 'Avvio…' : 'Inizia caricamento'"></span>
+                                </button>
+                                <span class="w-full text-xs text-stone-500">Lascia vuoto per tenere il fondo già impostato sulla cassa.</span>
+                            </div>
+
+                            <div class="rounded-xl bg-brand-50 p-4 text-center ring-1 ring-brand-200" x-show="state === 'loading' || state === 'ending'">
+                                <div class="text-sm text-brand-800">Inserito finora</div>
+                                <div class="text-4xl font-bold text-brand-900" x-text="euro(amount)"></div>
+                                <button type="button" class="btn-primary mt-3 py-2" x-show="state === 'loading'" @click="finish()">Fine caricamento</button>
+                            </div>
+
+                            <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                                <span x-show="message" x-text="message" class="text-emerald-700"></span>
+                                <span x-show="error" x-text="error" class="text-red-700"></span>
+                                <button type="button" class="font-semibold text-brand-700" x-show="state === 'confirm'" @click="confirm()">Riprova a registrare il fondo</button>
+                                <button type="button" class="btn-primary py-2" x-show="state === 'done'" @click="close()">Chiudi</button>
+                                <button type="button" class="text-xs text-stone-500 underline" x-show="state === 'idle'" @click="finish()">
+                                    Chiudi un caricamento rimasto aperto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             {{-- Terminali carta --}}

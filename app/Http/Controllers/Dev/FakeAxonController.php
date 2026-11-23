@@ -65,6 +65,8 @@ class FakeAxonController extends Controller
                 }
                 break;
             case '?':
+            case '7': // riga del documento gestionale (non fiscale)
+            case 'm': // chiusura del documento gestionale
                 break;
             default:
                 $code = '06';

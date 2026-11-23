@@ -41,6 +41,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/vendite/{sale}/scontrino', [DocumentController::class, 'receipt'])->name('sales.receipt.emit');
     Route::post('/vendite/{sale}/scontrino/conferma', [DocumentController::class, 'receiptConfirm'])->name('sales.receipt.confirm');
     Route::get('/vendite/{sale}/scontrino', [DocumentController::class, 'receiptPreview'])->name('sales.receipt');
+    Route::post('/vendite/{sale}/cortesia', [DocumentController::class, 'courtesy'])->name('sales.courtesy.print');
+    Route::get('/vendite/{sale}/cortesia', [DocumentController::class, 'courtesyPreview'])->name('sales.courtesy');
     Route::post('/vendite/{sale}/fattura', [DocumentController::class, 'invoice'])->name('sales.invoice');
     Route::get('/vendite/{sale}/fattura.pdf', [DocumentController::class, 'invoicePdf'])->name('sales.invoice.pdf');
 
@@ -67,6 +69,7 @@ Route::middleware('auth')->group(function () {
     // Riassortimento: l'ordine a TEA lo prepara e lo invia anche l'operatrice, e spunta la merce in arrivo
     Route::get('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'index'])->name('tea-orders.index');
     Route::post('/ordini-tea', [\App\Http\Controllers\TeaOrderController::class, 'store'])->name('tea-orders.store');
+    Route::get('/ordini-tea/inviati', [\App\Http\Controllers\TeaOrderController::class, 'sent'])->name('tea-orders.sent');
     Route::get('/ordini-tea/modello', [\App\Http\Controllers\TeaOrderController::class, 'orderTemplate'])->name('tea-orders.template');
     Route::post('/ordini-tea/excel', [\App\Http\Controllers\TeaOrderController::class, 'orderImport'])->name('tea-orders.import');
     Route::get('/ordini-tea/{teaOrder}', [\App\Http\Controllers\TeaOrderController::class, 'show'])->whereNumber('teaOrder')->name('tea-orders.show');
@@ -119,6 +122,10 @@ Route::middleware('auth')->group(function () {
         Route::put('/configurazione', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
         Route::post('/configurazione/prova-pos', [\App\Http\Controllers\SettingsController::class, 'testPos'])->name('settings.test-pos');
         Route::post('/configurazione/prova-vne', [\App\Http\Controllers\SettingsController::class, 'testVne'])->name('settings.test-vne');
+        Route::post('/configurazione/fondo-cassa/inizio', [\App\Http\Controllers\SettingsController::class, 'refillStart'])->name('settings.refill.start');
+        Route::post('/configurazione/fondo-cassa/stato', [\App\Http\Controllers\SettingsController::class, 'refillStatus'])->name('settings.refill.status');
+        Route::post('/configurazione/fondo-cassa/fine', [\App\Http\Controllers\SettingsController::class, 'refillEnd'])->name('settings.refill.end');
+        Route::post('/configurazione/fondo-cassa/conferma', [\App\Http\Controllers\SettingsController::class, 'refillConfirm'])->name('settings.refill.confirm');
         Route::post('/configurazione/prova-tea', [\App\Http\Controllers\SettingsController::class, 'testTea'])->name('settings.test-tea');
 
         Route::get('/openapi', [OpenApiCallController::class, 'index'])->name('openapi-calls');

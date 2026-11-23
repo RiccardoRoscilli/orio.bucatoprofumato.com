@@ -73,6 +73,36 @@ abstract class VneClient
         return $this->call(['tipo' => 20, 'opName' => $this->opName()], log: false);
     }
 
+    /** Settaggio fondo cassa per valore (tipo 92): la macchina calcola i livelli di ogni taglio. Euro interi. */
+    public function setPettyCash(int $amountCents): array
+    {
+        return $this->call(['tipo' => 92, 'opName' => $this->opName(), 'pettycash' => intdiv($amountCents, 100) * 100]);
+    }
+
+    /** Inizio refill (tipo 30): accetta solo i tagli che la macchina usa per il resto. */
+    public function refillStart(): array
+    {
+        return $this->call(['tipo' => 30, 'opName' => $this->opName(), 'acceptAll' => 0]);
+    }
+
+    /** Polling refill (tipo 33): refillOn e amountRefill (centesimi inseriti finora). */
+    public function refillPoll(): array
+    {
+        return $this->call(['tipo' => 33], log: false);
+    }
+
+    /** Fine refill (tipo 31): poi la macchina mescola le monete per circa 30 secondi. */
+    public function refillEnd(): array
+    {
+        return $this->call(['tipo' => 31, 'opName' => $this->opName()]);
+    }
+
+    /** Fine ripristino (tipo 93): il contenuto attuale diventa il fondo cassa della giornata. */
+    public function restoreDone(): array
+    {
+        return $this->call(['tipo' => 93]);
+    }
+
     /** Chiusura cassa (tipo 60). */
     public function closure(): array
     {

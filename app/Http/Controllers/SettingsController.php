@@ -183,6 +183,66 @@ class SettingsController extends Controller
         return response()->json(['ok' => true, 'message' => 'La cassa automatica risponde: ' . euro($notes) . ' in banconote e ' . euro($coins) . ' in monete disponibili per il resto.']);
     }
 
+    /**
+     * Caricamento del fondo cassa dalla Configurazione: imposta il fondo (tipo 92, facoltativo) e
+     * mette la macchina in ricarica (tipo 30). Il denaro si inserisce nelle fessure e lo conta lei.
+     */
+    public function refillStart(Request $request, \App\Services\Vne\VneClient $vne)
+    {
+        $data = $request->validate(['petty_cash' => ['nullable', 'integer', 'min:1', 'max:20000']]);
+
+        return $this->vneJson(function () use ($vne, $data) {
+            if ($data['petty_cash'] ?? null) {
+                $vne->setPettyCash($data['petty_cash'] * 100);
+            }
+            $vne->refillStart();
+
+            return ['message' => 'Cassa in caricamento: inserisci monete e banconote nelle fessure.'];
+        });
+    }
+
+    /** Quanto è stato inserito finora (tipo 33). */
+    public function refillStatus(\App\Services\Vne\VneClient $vne)
+    {
+        return $this->vneJson(function () use ($vne) {
+            $poll = $vne->refillPoll();
+
+            return ['on' => (bool) ($poll['refillOn'] ?? 0), 'amount' => (int) ($poll['amountRefill'] ?? 0)];
+        });
+    }
+
+    /** Fine caricamento (tipo 31) e totale inserito (tipo 33). */
+    public function refillEnd(\App\Services\Vne\VneClient $vne)
+    {
+        return $this->vneJson(function () use ($vne) {
+            $vne->refillEnd();
+            $amount = (int) ($vne->refillPoll()['amountRefill'] ?? 0);
+
+            return ['amount' => $amount, 'message' => 'Caricati ' . euro($amount) . '.'];
+        });
+    }
+
+    /** Fine ripristino (tipo 93): il contenuto della macchina diventa il fondo cassa. */
+    public function refillConfirm(\App\Services\Vne\VneClient $vne)
+    {
+        return $this->vneJson(function () use ($vne) {
+            $vne->restoreDone();
+            $status = $vne->status();
+            $total = (int) ($status['recycler']['totalInRecycle'] ?? 0) + (int) ($status['hopper']['totalInRecycle'] ?? 0);
+
+            return ['total' => $total];
+        });
+    }
+
+    private function vneJson(\Closure $action)
+    {
+        try {
+            return response()->json(['ok' => true] + $action());
+        } catch (\App\Services\Vne\VneException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 502);
+        }
+    }
+
     public function testTea(TeaOrderClient $client)
     {
         return response()->json($client->ping());

@@ -64,6 +64,38 @@ class DocumentController extends Controller
         return response()->json(['sale' => $sale]);
     }
 
+    /**
+     * Scontrino di cortesia (non fiscale) di uno scontrino emesso: come per lo scontrino, i comandi
+     * tornano al browser della postazione che li manda alla stampante; simulata = anteprima.
+     */
+    public function courtesy(Sale $sale)
+    {
+        abort_unless($sale->status === 'scontrinata' && $sale->receipt_number, 422, 'Lo scontrino di cortesia si stampa solo per uno scontrino emesso.');
+        $sale->load('items');
+
+        return match (config('orio.fiscal_printer.driver')) {
+            'axon' => response()->json([
+                'driver' => 'axon',
+                'base' => 'http://' . config('orio.fiscal_printer.host'),
+                'commands' => \App\Services\FiscalPrinter\CourtesyReceipt::axon($sale),
+            ]),
+            'epson' => response()->json([
+                'driver' => 'epson',
+                'url' => 'https://' . config('orio.fiscal_printer.host') . '/cgi-bin/fpmate.cgi',
+                'xml' => \App\Services\FiscalPrinter\CourtesyReceipt::epson($sale),
+            ]),
+            default => response()->json(['driver' => 'fake', 'preview_url' => route('sales.courtesy', $sale)]),
+        };
+    }
+
+    public function courtesyPreview(Sale $sale)
+    {
+        abort_unless($sale->status === 'scontrinata', 404);
+        $sale->load('items');
+
+        return view('sales.courtesy', ['sale' => $sale, 'lines' => \App\Services\FiscalPrinter\CourtesyReceipt::lines($sale)]);
+    }
+
     public function receiptPreview(Sale $sale)
     {
         $sale->load('items', 'vneTransactions');

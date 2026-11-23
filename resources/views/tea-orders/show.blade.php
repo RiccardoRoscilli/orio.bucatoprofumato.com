@@ -1,6 +1,6 @@
 <x-layout :title="'Ordine TEA ' . ($order->tea_increment_id ?? $order->reference)">
     <div class="mb-4 flex flex-wrap items-center gap-3">
-        <a href="{{ route('tea-orders.index') }}" class="text-sm font-semibold text-brand-700">← Ordini TEA</a>
+        <a href="{{ route('tea-orders.sent') }}" class="text-sm font-semibold text-brand-700">← Ordini inviati</a>
         <h1 class="text-xl font-bold">Ordine {{ $order->tea_increment_id ?? $order->reference }}</h1>
         @if ($order->status === 'inviato')
             <span class="badge bg-brand-50 text-brand-700">{{ $order->tea_status ?? 'Inviato' }}</span>

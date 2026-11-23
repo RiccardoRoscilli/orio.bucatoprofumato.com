@@ -110,6 +110,12 @@
             <div class="card space-y-2 p-4" x-data="{ busy: false, msg: null, async emit(url) { this.busy = true; this.msg = null; try { const { data } = await axios.post(url); this.msg = data.message ?? null; if (data.success !== false) location.reload(); } catch (e) { this.msg = e.response?.data?.message ?? 'Errore'; } this.busy = false; } }">
                 @if ($sale->status === 'scontrinata')
                     <a href="{{ route('sales.receipt', $sale) }}" target="_blank" class="btn-light w-full">Anteprima scontrino</a>
+                    @unless ($sale->receipt_voided_at)
+                        <button class="btn-light w-full" :disabled="busy"
+                                @click="busy = true; msg = null; printCourtesy({{ $sale->id }})
+                                    .then((r) => { if (r.previewUrl) window.open(r.previewUrl, '_blank'); else msg = 'Scontrino di cortesia stampato.'; })
+                                    .catch((e) => msg = e.response?.data?.message ?? e.message).finally(() => busy = false)">Scontrino di cortesia</button>
+                    @endunless
                 @endif
                 @if ($sale->status === 'fatturata' && $sale->fattura24_doc_id)
                     <a href="{{ route('sales.invoice.pdf', $sale) }}" target="_blank" class="btn-light w-full">PDF fattura</a>

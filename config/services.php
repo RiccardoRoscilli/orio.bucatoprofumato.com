@@ -43,4 +43,10 @@ return [
         'default_developer_id' => env('TASK_MANAGER_DEFAULT_DEVELOPER_ID', 6),
     ],
 
+    // Cesti natalizi inviati da teaerp (POST /api/tea/cesti-orders): segreto condiviso,
+    // stesso valore di ORIO_INBOUND_SECRET su teaerp.
+    'tea_cesti' => [
+        'secret' => env('TEA_CESTI_SECRET'),
+    ],
+
 ];

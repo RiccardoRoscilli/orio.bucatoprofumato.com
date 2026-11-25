@@ -41,10 +41,11 @@ class TeaCestiOrderController extends Controller
             'items.*.sku' => 'required|string|max:64',
             'items.*.name' => 'required|string|max:255',
             'items.*.qty' => 'required|integer|min:1',
-            // Prezzo unitario IVA inclusa: usato sia come prezzo di vendita in cassa del cesto
-            // (se è la prima volta che arriva, il prodotto in Orio non esiste ancora) sia per
-            // calcolare il totale dell'ordine fatturato da TEA.
+            // Prezzo unitario fatturato da TEA (listino 1), IVA inclusa: totale dell'ordine.
             'items.*.unit_price_cents' => 'required|integer|min:0',
+            // Prezzo al pubblico IVA inclusa: prezzo di vendita in cassa del cesto quando arriva
+            // per la prima volta. Se manca (teaerp vecchio) si usa quello fatturato.
+            'items.*.retail_price_cents' => 'nullable|integer|min:0',
             'items.*.vat_rate' => 'nullable|integer|min:0|max:100',
         ]);
 
@@ -73,7 +74,7 @@ class TeaCestiOrderController extends Controller
                     ['sku' => $item['sku']],
                     [
                         'name' => $item['name'],
-                        'price_cents' => $item['unit_price_cents'],
+                        'price_cents' => $item['retail_price_cents'] ?? $item['unit_price_cents'],
                         'vat_rate' => $vatRate,
                         'active' => true,
                         'sold_in_shop' => true,

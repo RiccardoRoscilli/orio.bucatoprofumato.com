@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Services\Stock\InventoryExcel;
 use App\Services\Stock\StockExcel;
 use App\Services\Stock\StockService;
 use Illuminate\Http\Request;
@@ -87,6 +88,17 @@ class StockController extends Controller
         $writer = new Xlsx($excel->template());
 
         return response()->streamDownload(fn () => $writer->save('php://output'), 'Orio-magazzino-' . now()->format('Y-m-d') . '.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /** Export dell'inventario: giacenze attuali con prezzo e valore al pubblico. */
+    public function inventoryExcel(InventoryExcel $excel)
+    {
+        $writer = new Xlsx($excel->build());
+        $writer->setPreCalculateFormulas(false);
+
+        return response()->streamDownload(fn () => $writer->save('php://output'), 'Orio-inventario-' . now()->format('Y-m-d_Hi') . '.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }

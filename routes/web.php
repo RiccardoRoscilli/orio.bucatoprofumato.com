@@ -91,6 +91,7 @@ Route::middleware('auth')->group(function () {
         Route::patch('/prodotti/{product}/scorta-minima', [\App\Http\Controllers\TeaOrderController::class, 'updateMinimum'])->name('products.minimum');
         Route::get('/magazzino/inventario', [StockController::class, 'index'])->name('stock.inventory');
         Route::post('/magazzino/inventario', [StockController::class, 'adjust'])->name('stock.adjust');
+        Route::get('/magazzino/inventario/excel', [StockController::class, 'inventoryExcel'])->name('stock.inventory.excel');
 
         Route::get('/prodotti/nuovo', [ProductController::class, 'create'])->name('products.create');
         Route::post('/prodotti', [ProductController::class, 'store'])->name('products.store');

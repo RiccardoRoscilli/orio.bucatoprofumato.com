@@ -4,6 +4,7 @@
         <a href="{{ route('stock.index') }}" class="filter-chip {{ $mode === 'carico' ? 'is-active' : '' }}">Carico merce</a>
         @can('admin')
             <a href="{{ route('stock.inventory') }}" class="filter-chip {{ $mode === 'inventario' ? 'is-active' : '' }}">Inventario</a>
+            <a href="{{ route('stock.inventory.excel') }}" class="btn-light py-2">Esporta inventario Excel</a>
         @endcan
     </div>
 

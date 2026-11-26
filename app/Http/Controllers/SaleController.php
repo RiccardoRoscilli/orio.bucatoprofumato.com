@@ -59,7 +59,7 @@ class SaleController extends Controller
                     'qty' => (float) $item->qty,
                     // Bozza: sempre il prezzo di listino attuale. Vendita gia' in pagamento o
                     // pagata: il prezzo con cui e' stata incassata.
-                    'price' => number_format(($sale->status === 'bozza' && $item->product ? $item->product->price_cents : $item->unit_price_cents) / 100, 2, ',', ''),
+                    'price' => number_format(($sale->status === 'bozza' && $item->product ? $item->product->currentPriceCents() : $item->unit_price_cents) / 100, 2, ',', ''),
                     'vat_rate' => $item->vat_rate,
                 ],
             ))->values(),
@@ -221,8 +221,8 @@ class SaleController extends Controller
 
     /**
      * Righe ricostruite dal catalogo: descrizione, SKU, IVA e prezzo vengono dal prodotto, non
-     * dal browser. In negozio si vende sempre a prezzo pieno (le promozioni valgono solo per
-     * l'online): il prezzo e' quello di listino gestito dagli admin in Prodotti.
+     * dal browser. Il prezzo e' quello Orio gestito dagli admin in Prodotti, o quello promo
+     * se oggi il prodotto e' in promo (le promo del sito non valgono in negozio).
      */
     private function fillSale(Sale $sale, array $data): void
     {
@@ -232,7 +232,7 @@ class SaleController extends Controller
             throw ValidationException::withMessages(['items' => "«" . trim($excluded->name) . "» non è in vendita in negozio: toglilo dal carrello."]);
         }
 
-        if ($noPrice = $products->first(fn (Product $p) => ! $p->price_cents)) {
+        if ($noPrice = $products->first(fn (Product $p) => ! $p->currentPriceCents())) {
             throw ValidationException::withMessages(['items' => "«{$noPrice->name}» non ha un prezzo di listino: va impostato in Prodotti."]);
         }
 
@@ -244,7 +244,7 @@ class SaleController extends Controller
                 'sku' => $product->sku,
                 'description' => trim($product->name),
                 'qty' => $item['qty'],
-                'unit_price_cents' => $product->price_cents,
+                'unit_price_cents' => $product->currentPriceCents(),
                 'vat_rate' => $product->vat_rate,
             ]);
         }

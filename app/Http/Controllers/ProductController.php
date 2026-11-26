@@ -68,6 +68,7 @@ class ProductController extends Controller
                 'in_stock' => $p->in_stock,
                 'site_price_cents' => $p->site_price_cents,
                 'price_cents' => $p->price_cents,
+                'promo' => $p->promoActive() ? ['price_cents' => $p->promo_price_cents, 'until' => $p->promo_until?->format('d/m')] : null,
                 'stock_qty' => $p->stock_qty,
                 'to_review' => $p->hasPriceToReview(),
             ]),
@@ -240,6 +241,38 @@ class ProductController extends Controller
         $product->update(['price_cents' => (int) round((float) str_replace(',', '.', $price) * 100)]);
 
         return response()->json(['product' => $product, 'to_review' => $product->hasPriceToReview()]);
+    }
+
+    /**
+     * Prezzo promo del negozio con periodo (dal giorno, facoltativo = da subito, fino al giorno
+     * compreso). Fuori dal periodo la cassa torna da sola al prezzo Orio. Prezzo vuoto = togli la promo.
+     */
+    public function updatePromo(Request $request, Product $product)
+    {
+        if (! $request->filled('promo_price')) {
+            $product->update(['promo_price_cents' => null, 'promo_from' => null, 'promo_until' => null]);
+
+            return back()->with('status', 'Promo tolta.');
+        }
+
+        $data = $request->validate([
+            'promo_price' => ['required', 'regex:/^\d+([.,]\d{1,2})?$/'],
+            'promo_from' => 'nullable|date',
+            'promo_until' => 'required|date|after_or_equal:today|after_or_equal:promo_from',
+        ], [
+            'promo_price.regex' => 'Prezzo promo non valido: ad esempio 9,90.',
+            'promo_until.required' => 'Scrivi fino a quando vale la promo.',
+            'promo_until.after_or_equal' => 'La fine della promo non può essere nel passato o prima dell\'inizio.',
+        ]);
+
+        $cents = (int) round((float) str_replace(',', '.', $data['promo_price']) * 100);
+        if ($cents <= 0 || $cents >= $product->price_cents) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['promo_price' => 'Il prezzo promo deve essere più basso del prezzo Orio (' . euro($product->price_cents) . ').']);
+        }
+
+        $product->update(['promo_price_cents' => $cents, 'promo_from' => $data['promo_from'] ?? null, 'promo_until' => $data['promo_until']]);
+
+        return back()->with('status', 'Promo salvata.');
     }
 
     /** Riporta il prezzo in cassa a quello attuale del sito (uno o tutti i prodotti da rivedere). */

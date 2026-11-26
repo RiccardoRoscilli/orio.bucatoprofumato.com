@@ -27,11 +27,52 @@
             </div>
 
             <div class="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span class="text-3xl font-bold tabular-nums">{{ euro($product->price_cents) }}</span>
+                @if ($product->promoActive())
+                    <span class="text-3xl font-bold tabular-nums text-brand-700">{{ euro($product->promo_price_cents) }}</span>
+                    <span class="text-lg tabular-nums text-stone-400 line-through">{{ euro($product->price_cents) }}</span>
+                    <span class="badge bg-brand-50 text-brand-700">In promo fino al {{ $product->promo_until->format('d/m/Y') }}</span>
+                @else
+                    <span class="text-3xl font-bold tabular-nums">{{ euro($product->price_cents) }}</span>
+                @endif
                 @if ($product->hasPriceToReview())
                     <span class="text-sm text-amber-700">sul sito {{ euro($product->site_price_cents) }}</span>
                 @endif
             </div>
+
+            @can('admin')
+                @php
+                    $promoScheduled = $product->promo_price_cents !== null && ! $product->promoActive() && $product->promo_from?->isFuture();
+                @endphp
+                <form method="POST" action="{{ route('products.promo', $product) }}" class="mt-4 rounded-xl bg-stone-50 p-3 ring-1 ring-stone-200">
+                    @csrf
+                    @method('PUT')
+                    <div class="mb-2 text-sm font-semibold">
+                        Promo in negozio
+                        @if ($promoScheduled)
+                            <span class="ml-1 font-normal text-stone-500">· parte il {{ $product->promo_from->format('d/m/Y') }}</span>
+                        @endif
+                    </div>
+                    @if ($errors->any())
+                        <p class="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ $errors->first() }}</p>
+                    @endif
+                    <div class="flex flex-wrap items-end gap-3 text-sm">
+                        <label class="block">Prezzo promo (€)
+                            <input name="promo_price" value="{{ old('promo_price', $product->promo_price_cents !== null ? number_format($product->promo_price_cents / 100, 2, ',', '') : '') }}" inputmode="decimal" class="input mt-1 w-28 py-1.5 text-right tabular-nums" placeholder="9,90">
+                        </label>
+                        <label class="block">Dal
+                            <input type="date" name="promo_from" value="{{ old('promo_from', $product->promo_from?->toDateString()) }}" class="input mt-1 py-1.5">
+                        </label>
+                        <label class="block">Al (compreso)
+                            <input type="date" name="promo_until" value="{{ old('promo_until', $product->promo_until?->toDateString()) }}" class="input mt-1 py-1.5">
+                        </label>
+                        <button class="btn-primary py-2">Salva promo</button>
+                        @if ($product->promo_price_cents !== null)
+                            <button name="promo_price" value="" class="py-2 font-semibold text-red-700 hover:text-red-900">Togli promo</button>
+                        @endif
+                    </div>
+                    <p class="mt-2 text-xs text-stone-500">Senza «Dal» parte subito. Finito il periodo la cassa torna da sola al prezzo Orio.</p>
+                </form>
+            @endcan
 
             <div class="mt-3 flex flex-wrap items-center gap-2">
                 <span class="badge {{ $product->stock_qty < 0 ? 'bg-red-50 text-red-700' : ($product->stock_qty > 0 ? 'bg-brand-50 text-brand-700' : 'bg-stone-100 text-stone-600') }}">In negozio: {{ $product->stockLabel() }}</span>

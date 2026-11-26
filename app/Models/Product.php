@@ -10,7 +10,7 @@ class Product extends Model
 {
     protected $fillable = [
         'sku', 'ean', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
-        'site_price_cents', 'price_cents', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'stock_min', 'reorder_qty', 'pcs_per_box', 'in_stock', 'synced_at',
+        'site_price_cents', 'price_cents', 'promo_price_cents', 'promo_from', 'promo_until', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'stock_min', 'reorder_qty', 'pcs_per_box', 'in_stock', 'synced_at',
     ];
 
     protected $casts = [
@@ -19,6 +19,9 @@ class Product extends Model
         'shop_only' => 'boolean',
         'site_price_cents' => 'integer',
         'price_cents' => 'integer',
+        'promo_price_cents' => 'integer',
+        'promo_from' => 'date',
+        'promo_until' => 'date',
         'vat_rate' => 'integer',
         'active' => 'boolean',
         'sold_in_shop' => 'boolean',
@@ -54,10 +57,29 @@ class Product extends Model
         return $query->whereNotNull('site_price_cents')->whereColumn('price_cents', '!=', 'site_price_cents');
     }
 
-    /** In promo in negozio: prezzo Orio piu' basso di quello del sito. */
+    /** Promo del negozio in corso oggi (prezzo promo impostato e data di oggi dentro il periodo). */
     public function scopeInPromo(Builder $query): Builder
     {
-        return $query->whereNotNull('site_price_cents')->whereColumn('price_cents', '<', 'site_price_cents');
+        $today = today()->toDateString();
+
+        return $query->whereNotNull('promo_price_cents')
+            ->where(fn ($q) => $q->whereNull('promo_from')->orWhereDate('promo_from', '<=', $today))
+            ->where(fn ($q) => $q->whereNull('promo_until')->orWhereDate('promo_until', '>=', $today));
+    }
+
+    public function promoActive(): bool
+    {
+        $today = today();
+
+        return $this->promo_price_cents !== null
+            && (! $this->promo_from || $this->promo_from->lte($today))
+            && (! $this->promo_until || $this->promo_until->gte($today));
+    }
+
+    /** Prezzo a cui si vende oggi in cassa: quello promo se la promo e' in corso, altrimenti il prezzo Orio. */
+    public function currentPriceCents(): ?int
+    {
+        return $this->promoActive() ? $this->promo_price_cents : $this->price_cents;
     }
 
     public function hasPriceToReview(): bool
@@ -85,7 +107,8 @@ class Product extends Model
             'description' => trim($this->name),
             'format' => $this->format,
             'image_url' => $this->image_url,
-            'price' => number_format($this->price_cents / 100, 2, ',', ''),
+            'price' => number_format($this->currentPriceCents() / 100, 2, ',', ''),
+            'promo' => $this->promoActive(),
             'vat_rate' => $this->vat_rate,
             'stock' => $this->stock_qty,
             'stock_min' => $this->stock_min,

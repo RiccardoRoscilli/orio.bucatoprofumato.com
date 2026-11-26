@@ -100,6 +100,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/prodotti/sincronizza', [ProductController::class, 'sync'])->name('products.sync');
         Route::post('/prodotti/allinea-prezzi', [ProductController::class, 'alignPrice'])->name('products.align-all');
         Route::post('/prodotti/{product}/allinea-prezzo', [ProductController::class, 'alignPrice'])->name('products.align');
+        Route::put('/prodotti/{product}/promo', [ProductController::class, 'updatePromo'])->name('products.promo');
         Route::patch('/prodotti/{product}/prezzo', [ProductController::class, 'updatePrice'])->name('products.price');
         Route::patch('/prodotti/{product}/negozio', [ProductController::class, 'updateShop'])->name('products.shop');
 

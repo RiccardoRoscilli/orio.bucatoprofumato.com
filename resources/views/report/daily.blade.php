@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Rapporto Orio</title>
     {{-- PWA: pagina e manifest solo per gli admin, l'installazione dalla Home parte da qui --}}
-    <link rel="manifest" href="{{ route('report.manifest') }}">
+    <link rel="manifest" href="{{ route('report.manifest') }}" crossorigin="use-credentials">
     <meta name="theme-color" content="#1f7169">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">

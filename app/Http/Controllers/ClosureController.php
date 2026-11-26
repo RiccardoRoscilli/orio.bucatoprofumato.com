@@ -126,11 +126,11 @@ class ClosureController extends Controller
 
     /** Passo 2: chiusura della cassa automatica VNE; si puo' ripetere se la macchina non risponde. */
     /** Riquadro dello stato della cassa automatica, chiesto dal tablet (collegamento dal tablet). */
-    public function vneStatus(VneClient $vne)
+    public function vneStatus(Request $request, VneClient $vne)
     {
         [$status, $vneError] = $this->readVneStatus($vne);
 
-        return view('closure-vne-status', ['status' => $status, 'vneError' => $vneError]);
+        return view('closure-vne-status', ['status' => $status, 'vneError' => $vneError, 'detailPopup' => $request->boolean('popup')]);
     }
 
     /** @return array{0:?array, 1:?string} stato e messaggio d'errore */

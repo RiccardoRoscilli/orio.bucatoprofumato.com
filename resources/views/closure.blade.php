@@ -24,13 +24,13 @@
             @if ($vneDeferred)
                 {{-- Cassa collegata dal tablet: lo stato lo chiede il browser, sulla rete del negozio --}}
                 <div x-data="{ html: null, error: null }"
-                     x-init="axios.post(@js(route('closure.vne-status'))).then(r => html = r.data).catch(e => error = e.response?.data?.message ?? e.message)">
+                     x-init="axios.post(@js(route('closure.vne-status')), { popup: 1 }).then(r => html = r.data).catch(e => error = e.response?.data?.message ?? e.message)">
                     <p x-show="!html && !error" class="text-sm text-stone-500">Lettura dello stato dal tablet…</p>
                     <p x-show="error" x-cloak x-text="error" class="rounded-lg bg-red-50 p-3 text-sm text-red-700"></p>
                     <div x-html="html"></div>
                 </div>
             @else
-                @include('closure-vne-status')
+                @include('closure-vne-status', ['detailPopup' => true])
             @endif
         </section>
 

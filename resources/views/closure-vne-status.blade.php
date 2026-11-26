@@ -36,6 +36,19 @@
         </div>
     </div>
 
+    @if ($detailPopup ?? false)
+        {{-- Pagina Chiusura: in pagina solo il riepilogo, il dettaglio per taglio in un popup --}}
+        <div x-data="{ detail: false }">
+            <button type="button" class="btn-light py-2" @click="detail = true">Dettaglio per taglio…</button>
+            <div x-show="detail" x-cloak class="fixed inset-0 z-40 flex items-center justify-center bg-stone-900/50 p-3 sm:p-4"
+                 @click.self="detail = false" @keydown.escape.window="detail = false">
+                <div class="card max-h-[90vh] w-full max-w-2xl overflow-y-auto p-5">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <h3 class="text-lg font-bold">Contenuto della cassa</h3>
+                        <button type="button" class="text-2xl leading-none text-stone-400 hover:text-stone-700" @click="detail = false" aria-label="Chiudi">&times;</button>
+                    </div>
+    @endif
+
     <h3 class="mb-2 text-sm font-semibold text-stone-500">Banconote per il resto · {{ euro($notesForChange) }}</h3>
     <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         @foreach ($recycler as $key => $note)
@@ -89,5 +102,10 @@
         </div>
     @else
         <p class="text-sm text-stone-500">{{ $coinsBox ? 'La cassa non comunica il dettaglio per taglio.' : 'Vuota.' }}</p>
+    @endif
+    @if ($detailPopup ?? false)
+                </div>
+            </div>
+        </div>
     @endif
 @endif

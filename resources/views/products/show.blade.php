@@ -127,6 +127,27 @@
                 <dd>{{ $product->vat_rate }}%</dd>
             </dl>
 
+            @if ($components->isNotEmpty())
+                <div class="card mt-6 p-5">
+                    <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Contenuto del cesto</h2>
+                    <ul class="divide-y divide-stone-100 text-sm">
+                        @foreach ($components as $c)
+                            <li class="flex items-baseline gap-3 py-2">
+                                <span class="w-12 shrink-0 text-right font-bold tabular-nums">{{ rtrim(rtrim(number_format($c->qty, 3, ',', ''), '0'), ',') }} ×</span>
+                                <span class="min-w-0 flex-1">
+                                    @if ($c->item)
+                                        <a href="{{ route('products.show', $c->item) }}" class="font-semibold hover:text-brand-700 hover:underline">{{ trim($c->name) }}</a>
+                                    @else
+                                        <span class="font-semibold">{{ trim($c->name) }}</span>
+                                    @endif
+                                    <span class="block text-xs text-stone-500">{{ $c->sku }}</span>
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             @if ($product->description)
                 <div class="card mt-6 p-5">
                     <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-stone-500">Dettagli</h2>

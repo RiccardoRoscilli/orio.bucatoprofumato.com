@@ -47,6 +47,11 @@ class TeaCestiOrderController extends Controller
             // per la prima volta. Se manca (teaerp vecchio) si usa quello fatturato.
             'items.*.retail_price_cents' => 'nullable|integer|min:0',
             'items.*.vat_rate' => 'nullable|integer|min:0|max:100',
+            // Contenuto del cesto (ricetta teaerp): per trovarlo in cassa cercando un prodotto dentro.
+            'items.*.components' => 'nullable|array',
+            'items.*.components.*.sku' => 'required|string|max:64',
+            'items.*.components.*.name' => 'required|string|max:255',
+            'items.*.components.*.qty' => 'required|numeric|min:0',
         ]);
 
         // Stesso riferimento già visto: non duplicare (idempotente, come teaerp fa con noi).
@@ -82,6 +87,13 @@ class TeaCestiOrderController extends Controller
                         'in_stock' => true,
                     ]
                 );
+
+                // Il contenuto invece lo aggiorniamo sempre: è l'ultima ricetta nota del cesto.
+                if (isset($item['components'])) {
+                    $product->components()->delete();
+                    $product->components()->createMany(collect($item['components'])
+                        ->map(fn ($c) => ['sku' => $c['sku'], 'name' => $c['name'], 'qty' => $c['qty']])->all());
+                }
 
                 $lines[] = $item + ['product' => $product, 'net_row_cents' => $netRowCents];
             }

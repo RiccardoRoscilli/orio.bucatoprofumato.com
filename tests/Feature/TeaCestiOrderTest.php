@@ -48,6 +48,26 @@ class TeaCestiOrderTest extends TestCase
         $this->assertSame(3050, Product::where('sku', 'CESTO-1')->value('price_cents'));
     }
 
+    public function test_basket_is_found_searching_a_product_inside(): void
+    {
+        Product::create(['sku' => 'ESS-RELAX', 'ean' => '8001112223334', 'name' => 'Essenza Relax 500 ml', 'price_cents' => 1700, 'vat_rate' => 22, 'active' => true, 'sold_in_shop' => true, 'in_stock' => true]);
+        $this->postJson('/api/tea/cesti-orders', $this->payload(['unit_price_cents' => 3050, 'components' => [
+            ['sku' => 'ESS-RELAX', 'name' => 'Essenza Relax 500 ml', 'qty' => 1],
+            ['sku' => 'CARD-2', 'name' => 'Card profumata (2pz)', 'qty' => 2],
+        ]]), ['X-Tea-Secret' => 'segreto'])->assertCreated();
+        $user = \App\Models\User::create(['name' => 'Cassa', 'username' => 'cassa', 'password' => 'x', 'active' => true, 'is_admin' => false]);
+
+        foreach (['relax', 'card profumata', 'CARD-2', '8001112223334'] as $q) {
+            $skus = collect($this->actingAs($user)->getJson('/prodotti/cerca?q=' . urlencode($q))->json('products'))->pluck('sku');
+            $this->assertContains('CESTO-1', $skus, "ricerca «{$q}»");
+        }
+        $basket = collect($this->actingAs($user)->getJson('/prodotti/cerca?q=relax')->json('products'))->firstWhere('sku', 'CESTO-1');
+        $this->assertSame([['name' => 'Essenza Relax 500 ml', 'qty' => 1], ['name' => 'Card profumata (2pz)', 'qty' => 2]], $basket['components']);
+        $this->actingAs($user)->get('/prodotti/' . Product::where('sku', 'CESTO-1')->value('id'))
+            ->assertOk()->assertSee('Contenuto del cesto')->assertSee('Card profumata (2pz)');
+        $this->assertNotContains('CESTO-1', collect($this->actingAs($user)->getJson('/prodotti/cerca?q=ammorbidente')->json('products'))->pluck('sku'));
+    }
+
     public function test_wrong_secret_is_rejected(): void
     {
         $this->postJson('/api/tea/cesti-orders', $this->payload(['unit_price_cents' => 3050]), ['X-Tea-Secret' => 'no'])

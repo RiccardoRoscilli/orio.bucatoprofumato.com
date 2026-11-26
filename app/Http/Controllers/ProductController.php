@@ -33,12 +33,7 @@ class ProductController extends Controller
         $terms = array_filter(preg_split('/\s+/', trim((string) $request->input('search.value'))));
         $filtered = (clone $base)->where(function ($q) use ($terms) {
             foreach ($terms as $term) {
-                $q->where(fn ($q) => $q
-                    ->where('name', 'like', "%{$term}%")
-                    ->orWhere('sku', 'like', "%{$term}%")
-                    ->orWhere('ean', 'like', "%{$term}%")
-                    ->orWhere('category', 'like', "%{$term}%")
-                    ->orWhere('format', 'like', "%{$term}%"));
+                $q->matchingTerm($term, ['category', 'format']);
             }
         });
 
@@ -80,6 +75,8 @@ class ProductController extends Controller
     {
         return view('products.show', [
             'product' => $product,
+            'components' => $product->components()->orderBy('id')->get()
+                ->each(fn ($c) => $c->setRelation('item', Product::where('sku', $c->sku)->first(['id', 'sku', 'name', 'stock_qty']))),
             'movements' => $product->stockMovements()->with('user:id,name')->latest('id')->limit(20)->get(),
             'siteUrl' => 'https://www.bucatoprofumato.com/catalogsearch/result/?q=' . urlencode(trim($product->name)),
         ]);
@@ -321,11 +318,14 @@ class ProductController extends Controller
         $products = Product::sellable()
             ->where(function ($q) use ($terms) {
                 foreach ($terms as $term) {
-                    $q->where(fn ($q) => $q->where('name', 'like', "%{$term}%")
-                        ->orWhere('sku', 'like', "%{$term}%")
-                        ->orWhere('ean', 'like', "%{$term}%"));
+                    $q->matchingTerm($term);
                 }
             })
+            ->with('components')
+            // Cesti per primi: cercando un prodotto molto diffuso (es. "card") resterebbero
+            // oltre il limite dei 12 risultati
+            ->withExists('components')
+            ->orderByDesc('components_exists')
             ->orderBy('name')
             ->limit(12)
             ->get();

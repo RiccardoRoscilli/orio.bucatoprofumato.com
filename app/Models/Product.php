@@ -87,6 +87,31 @@ class Product extends Model
         return $this->site_price_cents !== null && $this->price_cents !== $this->site_price_cents;
     }
 
+    /** Contenuto del cesto (vuoto per i prodotti normali). */
+    public function components(): HasMany
+    {
+        return $this->hasMany(ProductComponent::class);
+    }
+
+    /**
+     * Una parola di ricerca su nome/SKU/EAN del prodotto oppure, per i cesti, su nome/SKU/EAN
+     * di uno dei prodotti contenuti: cercando "Relax" escono anche i cesti che lo contengono.
+     */
+    public function scopeMatchingTerm(Builder $query, string $term, array $extraColumns = []): Builder
+    {
+        $like = "%{$term}%";
+
+        return $query->where(function ($q) use ($like, $extraColumns) {
+            $q->where('name', 'like', $like)->orWhere('sku', 'like', $like)->orWhere('ean', 'like', $like);
+            foreach ($extraColumns as $column) {
+                $q->orWhere($column, 'like', $like);
+            }
+            $q->orWhereHas('components', fn ($c) => $c->where('name', 'like', $like)
+                ->orWhere('sku', 'like', $like)
+                ->orWhereIn('sku', Product::query()->select('sku')->where('ean', 'like', $like)));
+        });
+    }
+
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);
@@ -112,6 +137,10 @@ class Product extends Model
             'vat_rate' => $this->vat_rate,
             'stock' => $this->stock_qty,
             'stock_min' => $this->stock_min,
+            // Contenuto del cesto, solo dove è stato caricato (ricerca in cassa)
+            'components' => $this->relationLoaded('components')
+                ? $this->components->map(fn ($c) => ['name' => $c->name, 'qty' => $c->qty])->all()
+                : [],
         ];
     }
 

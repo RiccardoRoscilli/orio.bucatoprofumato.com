@@ -22,26 +22,16 @@
 
     <div class="mb-4 flex flex-wrap items-center gap-2">
         @php
-            $filters = ['attivi' => 'Attivi', 'negozio' => 'In vendita in negozio', 'esclusi' => 'Non venduti in negozio', 'prezzi' => 'Prezzi da rivedere', 'sottozero' => 'Giacenza sotto zero', 'disattivi' => 'Non attivi sul sito', 'tutti' => 'Tutti'];
+            $filters = ['attivi' => 'Attivi', 'negozio' => 'In vendita in negozio', 'sottozero' => 'Giacenza sotto zero', 'promo' => 'In promo'];
         @endphp
         @foreach ($filters as $key => $label)
             <button type="button" data-filter="{{ $key }}" class="filter-chip {{ $filter === $key ? 'is-active' : '' }}">
                 {{ $label }}
-                @if ($key === 'prezzi')
-                    <span id="review-count" class="{{ $toReview ? '' : 'hidden' }} ml-1 rounded-full bg-amber-400 px-1.5 text-xs text-amber-950">{{ $toReview }}</span>
+                @if ($key === 'promo' && $inPromo)
+                    <span class="ml-1 rounded-full bg-brand-100 px-1.5 text-xs text-brand-800">{{ $inPromo }}</span>
                 @endif
             </button>
         @endforeach
-    </div>
-
-    <div id="review-banner" class="{{ $filter === 'prezzi' && $toReview ? '' : 'hidden' }} mb-4 flex flex-wrap items-center gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-        <span class="mr-auto">Questi prodotti hanno in cassa un prezzo diverso da quello attuale su bucatoprofumato.com. Correggi il prezzo o allinealo al sito.</span>
-        @can('admin')
-            <form method="POST" action="{{ route('products.align-all') }}" data-confirm="Allineare al sito tutti i {{ $toReview }} prezzi da rivedere?" data-confirm-label="Allinea prezzi">
-                @csrf
-                <button class="btn-primary py-2 text-sm">Allinea tutti al sito</button>
-            </form>
-        @endcan
     </div>
 
     <div class="card p-4">
@@ -62,7 +52,7 @@
                     <th class="dt-center">In vendita</th>
                     <th class="dt-right">Giacenza</th>
                     <th class="dt-right">Prezzo sito</th>
-                    <th class="dt-right">Prezzo cassa</th>
+                    <th class="dt-right">Prezzo Orio</th>
                     <th></th>
                 </tr>
             </thead>

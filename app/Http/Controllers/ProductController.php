@@ -16,7 +16,7 @@ class ProductController extends Controller
     {
         return view('products.index', [
             'filter' => $request->input('filtro', 'attivi'),
-            'toReview' => Product::where('active', true)->priceToReview()->count(),
+            'inPromo' => Product::where('active', true)->inPromo()->count(),
             'lastSync' => Product::max('synced_at'),
         ]);
     }
@@ -189,6 +189,7 @@ class ProductController extends Controller
             'disattivi' => $query->where('active', false),
             'prezzi' => $query->where('active', true)->priceToReview(),
             'sottozero' => $query->where('stock_qty', '<', 0),
+            'promo' => $query->where('active', true)->inPromo(),
             'negozio' => $query->where('active', true)->where('sold_in_shop', true),
             'esclusi' => $query->where('sold_in_shop', false),
             'tutti' => null,

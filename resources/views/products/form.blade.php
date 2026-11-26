@@ -21,7 +21,7 @@
         </label>
 
         <div class="grid gap-4 sm:grid-cols-2">
-            <label class="block text-sm font-semibold">Prezzo in cassa (€)
+            <label class="block text-sm font-semibold">Prezzo Orio (€)
                 <input name="price" value="{{ old('price', $product->price_cents !== null ? number_format($product->price_cents / 100, 2, ',', '') : '') }}"
                        inputmode="decimal" required class="input mt-1" placeholder="0,50">
             </label>

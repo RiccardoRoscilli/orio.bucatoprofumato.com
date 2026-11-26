@@ -54,6 +54,12 @@ class Product extends Model
         return $query->whereNotNull('site_price_cents')->whereColumn('price_cents', '!=', 'site_price_cents');
     }
 
+    /** In promo in negozio: prezzo Orio piu' basso di quello del sito. */
+    public function scopeInPromo(Builder $query): Builder
+    {
+        return $query->whereNotNull('site_price_cents')->whereColumn('price_cents', '<', 'site_price_cents');
+    }
+
     public function hasPriceToReview(): bool
     {
         return $this->site_price_cents !== null && $this->price_cents !== $this->site_price_cents;

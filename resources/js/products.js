@@ -93,7 +93,6 @@ document.querySelectorAll('button[data-filter]').forEach((button) => {
     button.addEventListener('click', () => {
         filter = button.dataset.filter;
         document.querySelectorAll('button[data-filter]').forEach((b) => b.classList.toggle('is-active', b === button));
-        document.getElementById('review-banner')?.classList.toggle('hidden', filter !== 'prezzi');
         history.replaceState(null, '', `?filtro=${filter}`);
         table.ajax.reload();
     });
@@ -154,9 +153,6 @@ syncButton?.addEventListener('click', async () => {
         const { data } = await window.axios.post(syncButton.dataset.url, {}, { timeout: 300000 });
         showSyncResult(data.message, true);
         document.getElementById('last-sync').textContent = data.last_sync;
-        const badge = document.getElementById('review-count');
-        badge.textContent = data.to_review;
-        badge.classList.toggle('hidden', !data.to_review);
         table.ajax.reload(null, false);
     } catch (e) {
         showSyncResult(e.response?.data?.message ?? 'Sincronizzazione non riuscita.', false);

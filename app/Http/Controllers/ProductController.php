@@ -44,6 +44,7 @@ class ProductController extends Controller
             ->orderBy($column, $dir)
             ->offset((int) $request->input('start', 0))
             ->limit(min(200, max(1, (int) $request->input('length', 50))))
+            ->with('components')
             ->get();
 
         return response()->json([
@@ -66,6 +67,7 @@ class ProductController extends Controller
                 'promo' => $p->promoActive() ? ['price_cents' => $p->promo_price_cents, 'until' => $p->promo_until?->format('d/m')] : null,
                 'stock_qty' => $p->stock_qty,
                 'to_review' => $p->hasPriceToReview(),
+                'components' => $p->components->map(fn ($c) => ['name' => $c->name, 'qty' => $c->qty]),
             ]),
         ]);
     }
@@ -294,7 +296,7 @@ class ProductController extends Controller
      */
     public function barcode(string $code)
     {
-        $products = Product::sellable()->whereBarcode(trim($code))->limit(5)->get();
+        $products = Product::sellable()->whereBarcode(trim($code))->with('components')->limit(5)->get();
 
         if ($products->isEmpty()) {
             $excluded = Product::where('active', true)->where('sold_in_shop', false)->whereBarcode(trim($code))->first();

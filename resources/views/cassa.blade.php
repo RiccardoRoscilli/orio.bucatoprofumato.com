@@ -18,31 +18,22 @@
                 <p x-show="scanMessage" x-text="scanMessage" class="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
 
                 {{-- Risultati ricerca / scelta tra piu' prodotti con lo stesso codice --}}
-                <div x-show="results.length || resultsTitle" x-cloak @click.outside="results = []; resultsTitle = null"
+                <div x-show="results.length || resultsTitle" x-cloak @click.outside="if (!$event.target.closest('[data-basket-popup]')) { results = []; resultsTitle = null }"
                      class="absolute inset-x-3 top-full z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-xl bg-white shadow-xl ring-1 ring-stone-200">
                     <div x-show="resultsTitle" x-text="resultsTitle" class="px-4 py-2 text-sm font-semibold text-stone-500"></div>
                     <template x-for="product in results" :key="product.product_id">
-                        <div x-data="{ open: false }" class="border-t border-stone-100">
-                        <button type="button" @click="addProduct(product)" class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-brand-50">
-                            <img :src="product.image_url" x-show="product.image_url" class="h-11 w-11 rounded-lg object-cover ring-1 ring-stone-200" alt="">
+                        <button type="button" @click="addProduct(product)" class="flex w-full items-center gap-3 border-t border-stone-100 px-4 py-2.5 text-left hover:bg-brand-50">
+                            <img :src="product.image_url" x-show="product.image_url && !product.components?.length" class="h-11 w-11 rounded-lg object-cover ring-1 ring-stone-200" alt="">
+                            <x-basket-button item="product" class="h-11 w-11" />
                             <div class="min-w-0 flex-1">
                                 <div class="truncate font-semibold" x-text="product.description"></div>
                                 <div class="text-xs text-stone-500" x-text="[product.sku, product.format, product.ean].filter(Boolean).join(' · ')"></div>
-                                <span x-show="product.components?.length" role="button" @click.stop="open = !open"
-                                      class="mt-1 inline-block rounded-md bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
-                                      x-text="`${open ? '▾' : '▸'} Contenuto cesto (${product.components?.length})`"></span>
                             </div>
                             <div class="text-right">
                                 <div class="font-bold tabular-nums" x-text="euro(Math.round(parseFloat(product.price.replace(',', '.')) * 100))"></div>
                                 <div class="text-xs tabular-nums" :class="product.stock > 0 ? 'text-stone-500' : 'text-amber-700'" x-text="`in negozio ${fmtQty(product.stock ?? 0)}`"></div>
                             </div>
                         </button>
-                        <ul x-show="open" x-cloak class="mx-4 mb-2.5 rounded-lg bg-stone-50 px-3 py-1.5 text-sm">
-                            <template x-for="(c, i) in product.components" :key="i">
-                                <li class="flex gap-2 py-0.5"><span class="w-10 shrink-0 text-right font-bold tabular-nums" x-text="`${fmtQty(c.qty)} ×`"></span><span x-text="c.name"></span></li>
-                            </template>
-                        </ul>
-                        </div>
                     </template>
                 </div>
             </div>
@@ -65,7 +56,8 @@
                 <template x-for="(row, index) in rows" :key="row.key">
                     <div class="flex flex-wrap items-center gap-3 border-t border-stone-100 px-1 py-2.5 transition-colors first:border-0 md:flex-nowrap"
                          :class="flashKey === row.key && 'bg-brand-50'">
-                        <img :src="row.image_url" x-show="row.image_url" class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-stone-200" alt="">
+                        <img :src="row.image_url" x-show="row.image_url && !row.components?.length" class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-stone-200" alt="">
+                        <x-basket-button item="row" class="h-12 w-12" />
                         <div class="min-w-0 flex-1 basis-[calc(100%-4rem)] md:basis-auto">
                             <div class="line-clamp-2 font-semibold leading-tight" x-text="row.description"></div>
                             <div class="text-xs text-stone-500" x-text="[row.sku, row.format].filter(Boolean).join(' · ')"></div>

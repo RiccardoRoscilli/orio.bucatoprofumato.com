@@ -30,7 +30,7 @@ class TeaOrderController extends Controller
         $this->teaSkus = array_keys($teaBoxes);
 
         $perBox = fn (Product $p) => $boxes[trim((string) $p->sku)] ?? 1;
-        $below = Product::sellable()->belowMinimum()->orderBy('name')->get();
+        $below = Product::sellable()->belowMinimum()->with('components')->orderBy('name')->get();
 
         // L'ordine in preparazione resta aperto finche' non viene inviato: si riprende da dove era rimasto
         $open = TeaOrder::open()?->load('items.product', 'editor:id,name');

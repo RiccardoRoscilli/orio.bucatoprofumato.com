@@ -22,12 +22,13 @@
                 </div>
                 <p x-show="error" x-text="error" x-cloak class="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
 
-                <div x-show="results.length || resultsTitle" x-cloak @click.outside="results = []; resultsTitle = null"
+                <div x-show="results.length || resultsTitle" x-cloak @click.outside="if (!$event.target.closest('[data-basket-popup]')) { results = []; resultsTitle = null }"
                      class="absolute inset-x-3 top-full z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-xl bg-white shadow-xl ring-1 ring-stone-200">
                     <div x-show="resultsTitle" x-text="resultsTitle" class="px-4 py-2 text-sm font-semibold text-stone-500"></div>
                     <template x-for="product in results" :key="product.product_id">
                         <button type="button" @click="pick(product)" class="flex w-full items-center gap-3 border-t border-stone-100 px-4 py-2.5 text-left hover:bg-brand-50">
-                            <img :src="product.image_url" x-show="product.image_url" class="h-11 w-11 rounded-lg object-cover ring-1 ring-stone-200" alt="">
+                            <img :src="product.image_url" x-show="product.image_url && !product.components?.length" class="h-11 w-11 rounded-lg object-cover ring-1 ring-stone-200" alt="">
+                            <x-basket-button item="product" class="h-11 w-11" />
                             <div class="min-w-0 flex-1">
                                 <div class="truncate font-semibold" x-text="product.description"></div>
                                 <div class="text-xs text-stone-500" x-text="[product.sku, product.format, product.ean].filter(Boolean).join(' · ')"></div>

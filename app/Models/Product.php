@@ -137,10 +137,8 @@ class Product extends Model
             'vat_rate' => $this->vat_rate,
             'stock' => $this->stock_qty,
             'stock_min' => $this->stock_min,
-            // Contenuto del cesto, solo dove è stato caricato (ricerca in cassa)
-            'components' => $this->relationLoaded('components')
-                ? $this->components->map(fn ($c) => ['name' => $c->name, 'qty' => $c->qty])->all()
-                : [],
+            // Contenuto del cesto (vuoto per i prodotti normali): popup dall'icona al posto della foto
+            'components' => $this->components->map(fn ($c) => ['name' => $c->name, 'qty' => $c->qty])->all(),
         ];
     }
 

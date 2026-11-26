@@ -9,6 +9,9 @@ const ITALIAN = italian('prodotti', 'nome, SKU, EAN, categoria, formato');
 
 
 
+// Icona cesto (Lucide "shopping-basket", ISC): al posto della foto, apre il popup del contenuto (x-basket-popup)
+const BASKET_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true"><path d="m15 11-1 9"/><path d="m19 11-4-7"/><path d="M2 11h20"/><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4"/><path d="M4.5 15.5h15"/><path d="m5 11 4-7"/><path d="m9 11 1 9"/></svg>';
+
 const el = document.getElementById('products-table');
 const { dataUrl, showUrl, priceUrl, alignUrl, shopUrl, isAdmin } = el.dataset;
 const productUrl = (id) => escape(showUrl.replace('__ID__', id));
@@ -22,6 +25,8 @@ const table = new DataTable(el, {
     lengthMenu: [25, 50, 100, 200],
     order: [[1, 'asc']],
     searchDelay: 250,
+    // Ricerca ripresa dall'indirizzo: ricaricando la pagina o tornando da una scheda resta quella
+    search: { search: new URLSearchParams(location.search).get('q') ?? '' },
     language: ITALIAN,
     layout: {
         topStart: 'search',
@@ -37,7 +42,9 @@ const table = new DataTable(el, {
     columns: [
         {
             data: 'image_url', orderable: false, width: '56px',
-            render: (url, type, p) => url ? `<a href="${productUrl(p.id)}" tabindex="-1"><img src="${escape(url)}" alt="" loading="lazy" class="h-10 w-10 rounded-lg object-cover ring-1 ring-stone-200"></a>` : '',
+            render: (url, type, p) => p.components?.length
+                ? `<button type="button" data-basket title="Vedi il contenuto del cesto" class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-700 ring-1 ring-brand-200 hover:bg-brand-100">${BASKET_ICON}</button>`
+                : url ? `<a href="${productUrl(p.id)}" tabindex="-1"><img src="${escape(url)}" alt="" loading="lazy" class="h-10 w-10 rounded-lg object-cover ring-1 ring-stone-200"></a>` : '',
         },
         {
             data: 'name',
@@ -94,12 +101,21 @@ const table = new DataTable(el, {
 // Il campo di ricerca prende il focus all'apertura, come nella cassa
 table.on('init', () => $(el).closest('.dt-container').find('.dt-search input').trigger('focus'));
 
+// Filtro e ricerca sempre nell'indirizzo (?filtro=…&q=…), così sopravvivono al ricaricamento
+function syncUrl() {
+    const params = new URLSearchParams({ filtro: filter });
+    const q = table.search().trim();
+    if (q) params.set('q', q);
+    history.replaceState(null, '', `?${params}`);
+}
+table.on('search', syncUrl);
+
 // Filtri a pulsante (Attivi, Prezzi da rivedere, ...) senza ricaricare la pagina
 document.querySelectorAll('button[data-filter]').forEach((button) => {
     button.addEventListener('click', () => {
         filter = button.dataset.filter;
         document.querySelectorAll('button[data-filter]').forEach((b) => b.classList.toggle('is-active', b === button));
-        history.replaceState(null, '', `?filtro=${filter}`);
+        syncUrl();
         table.ajax.reload();
     });
 });
@@ -167,4 +183,9 @@ syncButton?.addEventListener('click', async () => {
         syncButton.querySelector('[data-spinner]').classList.add('hidden');
         label.textContent = original;
     }
+});
+
+$(el).on('click', '[data-basket]', function () {
+    const p = table.row($(this).closest('tr')).data();
+    window.dispatchEvent(new CustomEvent('basket-open', { detail: { name: p.name, components: p.components } }));
 });

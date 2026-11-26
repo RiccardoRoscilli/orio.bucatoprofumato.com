@@ -34,7 +34,7 @@ class SaleController extends Controller
      */
     private function openSaleState(Request $request): ?array
     {
-        $sale = Sale::with('items.product', 'customer')
+        $sale = Sale::with('items.product.components', 'customer')
             ->where('user_id', $request->user()->id)
             ->whereIn('status', ['bozza', 'in_pagamento', 'pagata'])
             ->latest('updated_at')

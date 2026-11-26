@@ -5,7 +5,11 @@
     <div class="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         {{-- Foto --}}
         <div class="card flex aspect-square items-center justify-center overflow-hidden p-6 lg:sticky lg:top-5 lg:self-start">
-            @if ($product->image_url)
+            @if ($components->isNotEmpty())
+                <span class="flex h-40 w-40 items-center justify-center rounded-3xl bg-brand-50 text-brand-700 ring-1 ring-brand-200">
+                    <x-basket-icon class="h-20 w-20" />
+                </span>
+            @elseif ($product->image_url)
                 <img src="{{ $product->image_url }}" alt="{{ $product->name }}" class="max-h-full max-w-full object-contain">
             @else
                 <span class="text-sm text-stone-400">Nessuna foto sul sito</span>

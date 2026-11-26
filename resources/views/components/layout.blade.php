@@ -115,5 +115,6 @@
         <x-customer-modal />
     @endauth
     <x-confirm-dialog />
+    <x-basket-popup />
 </body>
 </html>

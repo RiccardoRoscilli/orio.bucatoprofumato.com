@@ -53,6 +53,7 @@
                     <th class="dt-right">Giacenza</th>
                     <th class="dt-right">Prezzo sito</th>
                     <th class="dt-right">Prezzo Orio</th>
+                    <th class="dt-right">Prezzo promo</th>
                     <th></th>
                 </tr>
             </thead>

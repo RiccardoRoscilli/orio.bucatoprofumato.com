@@ -69,13 +69,18 @@ const table = new DataTable(el, {
             data: 'price_cents', className: 'dt-right',
             render: (cents, type, p) => {
                 if (type !== 'display') return cents;
-                const promo = p.promo ? `<div class="text-xs font-semibold text-brand-700">promo ${euro(p.promo.price_cents)} fino al ${p.promo.until}</div>` : '';
-                if (!admin) return `<span class="font-semibold tabular-nums">${euro(cents)}</span>${promo}`;
+                if (!admin) return `<span class="font-semibold tabular-nums">${euro(cents)}</span>`;
                 const value = (cents / 100).toFixed(2).replace('.', ',');
                 return `<div class="flex items-center justify-end gap-1"><span class="text-stone-400">€</span>
                         <input data-price="${p.id}" value="${value}" inputmode="decimal" class="input w-24 py-1.5 text-right tabular-nums"></div>
-                        <div class="price-msg text-xs"></div>${promo}`;
+                        <div class="price-msg text-xs"></div>`;
             },
+        },
+        {
+            data: 'promo', className: 'dt-right whitespace-nowrap', orderable: false,
+            render: (promo, type) => type !== 'display' ? (promo?.price_cents ?? '')
+                : promo ? `<span class="font-bold tabular-nums text-brand-700">${euro(promo.price_cents)}</span><div class="text-xs text-stone-500">fino al ${promo.until}</div>`
+                : '<span class="text-stone-300">—</span>',
         },
         {
             data: null, orderable: false, className: 'dt-right',

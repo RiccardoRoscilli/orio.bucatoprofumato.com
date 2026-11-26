@@ -49,11 +49,12 @@ export default (mode = 'carico') => ({
     onScanInput() {
         clearTimeout(this.searchTimer);
         const q = this.scan.trim();
-        if (q.length < 3 || /^\d+$/.test(q)) {
+        // Solo cifre: almeno 4 (EAN o SKU scritto a mano). Il lettore manda subito Invio, che annulla l'attesa
+        if (q.length < 3 || (/^\d+$/.test(q) && q.length < 4)) {
             this.results = [];
             return;
         }
-        this.searchTimer = setTimeout(() => this.search(q, false), 250);
+        this.searchTimer = setTimeout(() => this.search(q, false), /^\d+$/.test(q) ? 400 : 250);
     },
 
     async submitScan() {

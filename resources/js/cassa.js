@@ -566,7 +566,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
         if (!ok) return;
         this.splitError = null;
         try {
-            const result = await voidSale(this.sale.id);
+            const result = await voidSale(this.sale.id, (message) => { this.splitError = message; });
             if (result.state !== 'done') {
                 this.splitError = result.message;
                 return;

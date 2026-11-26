@@ -26,6 +26,8 @@ class FakeVneClient extends VneClient
             5 => $this->pendingList(),
             20 => $this->machineStatus(),
             60 => $this->cashClosure(),
+            65 => $this->startRefund($payload),
+            66 => $this->pollRefund($payload),
             92 => ['tipo' => 92, 'req_status' => 1] + array_diff_key($this->machineStatus(), ['tipo' => 1]),
             30 => $this->fakeRefillStart(),
             31 => $this->fakeRefillEnd(),
@@ -162,6 +164,39 @@ class FakeVneClient extends VneClient
         return $list
             ? ['tipo' => 5, 'list_length' => count($list), 'pending_list' => $list]
             : ['tipo' => 5, 'list_length' => 0];
+    }
+
+    /** Rimborso simulato: la cassa eroga l'importo pagato in circa 3 secondi. */
+    private function startRefund(array $payload): array
+    {
+        $id = (string) $payload['id'];
+        $payment = Cache::get("vne_fake:{$id}");
+        $final = $payment['final'] ?? null;
+        if (! $final || ! in_array($final['status'], ['completed', 'partial'], true) || ($payment['refund']['done'] ?? false)) {
+            return ['tipo' => 65, 'req_status' => 2, 'mess' => 165];
+        }
+        $payment['refund'] = ['started' => microtime(true), 'amount' => $final['status'] === 'completed' ? $final['amount'] : $final['inserted'], 'done' => false];
+        Cache::put("vne_fake:{$id}", $payment, now()->addDay());
+
+        return ['tipo' => 65, 'req_status' => 1];
+    }
+
+    private function pollRefund(array $payload): array
+    {
+        $id = (string) $payload['id'];
+        $payment = Cache::get("vne_fake:{$id}");
+        $refund = $payment['refund'] ?? null;
+        if (! $refund) {
+            return ['tipo' => 66, 'req_status' => 2, 'mess' => 104];
+        }
+        $done = microtime(true) - $refund['started'] >= 3;
+        if ($done && ! $refund['done']) {
+            $payment['refund']['done'] = true;
+            Cache::put("vne_fake:{$id}", $payment, now()->addDay());
+        }
+
+        return ['tipo' => 66, 'req_status' => 1, 'id' => $id, 'refund_status' => $done ? 'completed' : 'pending',
+            'refunded' => $done ? $refund['amount'] : 0, 'toRefund' => $refund['amount']];
     }
 
     /** Refill simulato: entra una moneta da 2 € ogni secondo. */

@@ -6,13 +6,17 @@ use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Services\Pos\CloudPos;
 use App\Services\Pos\PosException;
+use App\Services\Vne\VneClient;
+use App\Services\Vne\VneException;
 
 /**
  * Annullo di una vendita gia' incassata, in tre passaggi che si possono riprendere:
  *  1. scontrino emesso -> documento commerciale di annullo sulla stampante fiscale;
  *  2. pagata col SmartPOS -> rimborso dell'intero importo sulla carta (MultiSafepay);
- *  3. vendita "annullata": esce dagli incassi e la merce rientra in magazzino.
- * Contanti e POS non collegato si restituiscono a mano: Orio lo ricorda all'operatore.
+ *  3. vendita "annullata": esce dagli incassi e la merce rientra in magazzino;
+ *  4. contanti incassati dalla cassa automatica -> la VNE li restituisce (rimborso tipo 65),
+ *     con il browser che segue l'erogazione chiamando refundCash() finche' non finisce.
+ * POS non collegato e contanti presi a mano si restituiscono a mano: Orio lo ricorda all'operatore.
  */
 class SaleVoidService
 {
@@ -45,6 +49,13 @@ class SaleVoidService
         }
 
         return $payments->filter(fn (SalePayment $p) => $p->refundableOnCard())->values();
+    }
+
+    /** Parti in contanti che la cassa automatica puo' restituire. */
+    public function cashRefunds(Sale $sale)
+    {
+        return $sale->payments()->where('status', 'pagato')->get()
+            ->filter(fn (SalePayment $p) => $p->refundableOnVne())->values();
     }
 
     public function needsRefund(Sale $sale): bool
@@ -81,17 +92,98 @@ class SaleVoidService
 
         $sale->update(['status' => 'annullata', 'voided_by' => $userId, 'closed_at' => $sale->closed_at ?? now()]);
 
-        $byType = $sale->paidByType();
-        $paid = $sale->payments()->where('status', 'pagato')->get();
-        $manualCard = $paid->isEmpty()
-            ? ($sale->refunded_at ? 0 : $byType['pos'])
-            : (int) $paid->filter(fn (SalePayment $p) => $p->isCard() && ! $p->refunded_at)->sum('paid_cents');
-        $messages = array_filter([
-            $refunded ? euro($refunded) . ' rimborsati sulla carta del cliente.' : null,
-            $manualCard > 0 ? 'Rimborsa ' . euro($manualCard) . ' al cliente dal POS.' : null,
-            $byType['contanti'] ? 'Restituisci ' . euro($byType['contanti']) . ' in contanti al cliente.' : null,
-        ]);
+        $cashPending = $this->cashRefunds($sale)->isNotEmpty();
 
-        return ['state' => 'done', 'message' => 'Vendita annullata. ' . implode(' ', $messages)];
+        return ['state' => 'done', 'message' => 'Vendita annullata.' . $this->summary($sale), 'cash_refund' => $cashPending];
+    }
+
+    /**
+     * Un passo del rimborso dei contanti dalla cassa automatica, chiamato dal browser ogni
+     * secondo: avvia il rimborso (tipo 65) della prima parte da restituire, poi ne segue
+     * l'erogazione (tipo 66). Se la VNE rifiuta o non ha abbastanza denaro, la parte resta
+     * chiusa con quanto erogato e il resto si restituisce a mano: niente nuovi tentativi
+     * automatici, per non rischiare di dare i soldi due volte.
+     *
+     * @return array{state:string, message:string}
+     */
+    public function refundCash(Sale $sale, VneClient $vne): array
+    {
+        $payment = $this->cashRefunds($sale)->first();
+        if (! $payment) {
+            return ['state' => 'done', 'message' => 'Vendita annullata.' . $this->summary($sale)];
+        }
+        $check = ' Controlla sulla cassa automatica se ha già restituito i soldi prima di darli a mano; poi riprova dalla scheda della vendita.';
+
+        try {
+            if (! $payment->refund_started_at) {
+                try {
+                    $vne->refund($payment->vne_transaction_id, $sale->id);
+                } finally {
+                    // Anche senza risposta il rimborso potrebbe essere partito: da qui in poi solo il controllo (66)
+                    $payment->update(['refund_started_at' => now()]);
+                }
+
+                return ['state' => 'refunding', 'message' => 'La cassa automatica sta restituendo ' . euro($payment->paid_cents) . '…'];
+            }
+
+            $response = $vne->refundPoll($payment->vne_transaction_id, $sale->id);
+        } catch (VneException $e) {
+            if (! $e->getCode()) {
+                return ['state' => 'unreachable', 'message' => $e->getMessage() . '.' . $check];
+            }
+            // Rifiutato dalla cassa (es. rimborsi non abilitati): quella parte va restituita a mano
+            $payment->update(['refunded_at' => now(), 'refunded_cents' => 0]);
+
+            return $this->withNote($this->refundCash($sale, $vne), 'La cassa automatica non ha restituito i contanti: ' . $e->getMessage() . '.');
+        }
+
+        $refunded = (int) ($response['refunded'] ?? 0);
+        $toRefund = (int) ($response['toRefund'] ?? $payment->paid_cents);
+        if (($response['refund_status'] ?? null) !== 'completed') {
+            return ['state' => 'refunding', 'message' => 'La cassa automatica sta restituendo ' . euro($toRefund) . '… (' . euro($refunded) . ' erogati)'];
+        }
+
+        $payment->update(['refunded_at' => now(), 'refunded_cents' => $refunded]);
+
+        return $this->refundCash($sale, $vne);
+    }
+
+    private function withNote(array $result, string $note): array
+    {
+        if ($result['state'] === 'done') {
+            $result['message'] .= ' ' . $note;
+        }
+
+        return $result;
+    }
+
+    /** Cosa e' stato rimborsato e cosa va restituito a mano, per il messaggio finale. */
+    public function summary(Sale $sale): string
+    {
+        $paid = $sale->payments()->where('status', 'pagato')->get();
+        $byType = $sale->paidByType();
+
+        if ($paid->isEmpty()) {
+            // Vendita senza parti registrate (dati vecchi)
+            $onCard = $sale->refunded_at ? $byType['pos'] : 0;
+            $manualCard = $byType['pos'] - $onCard;
+            $fromVne = 0;
+            $byHand = $byType['contanti'];
+        } else {
+            $cards = $paid->filter(fn (SalePayment $p) => $p->isCard());
+            $cash = $paid->reject(fn (SalePayment $p) => $p->isCard());
+            $onCard = (int) $cards->whereNotNull('refunded_at')->sum('paid_cents');
+            $manualCard = (int) $cards->whereNull('refunded_at')->sum('paid_cents');
+            $fromVne = (int) $cash->sum('refunded_cents');
+            // Le parti che la cassa sta ancora restituendo non vanno date a mano
+            $byHand = (int) $cash->sum('paid_cents') - $fromVne - (int) $cash->filter(fn (SalePayment $p) => $p->refundableOnVne())->sum('paid_cents');
+        }
+
+        return implode('', array_filter([
+            $onCard ? ' ' . euro($onCard) . ' rimborsati sulla carta del cliente.' : null,
+            $manualCard > 0 ? ' Rimborsa ' . euro($manualCard) . ' al cliente dal POS.' : null,
+            $fromVne ? ' ' . euro($fromVne) . ' restituiti dalla cassa automatica.' : null,
+            $byHand > 0 ? ' Restituisci ' . euro($byHand) . ' in contanti al cliente.' : null,
+        ]));
     }
 }

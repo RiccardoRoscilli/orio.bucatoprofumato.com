@@ -14,13 +14,14 @@ import { registerBadgeScanner } from './badge-scanner';
 import { registerAutoClosure } from './auto-closure';
 import { registerConfirm, askConfirm } from './confirm';
 import { emitReceipt } from './fiscal/receipt';
-import { voidSale } from './fiscal/void';
+import { refundCash, voidSale } from './fiscal/void';
 import { printCourtesy } from './fiscal/courtesy';
 import * as axonPrinter from './fiscal/axon';
 
 window.Alpine = Alpine;
 window.emitReceipt = emitReceipt;
 window.voidSale = voidSale;
+window.refundCash = refundCash;
 window.printCourtesy = printCourtesy;
 window.axonPrinter = axonPrinter;
 window.askConfirm = askConfirm;

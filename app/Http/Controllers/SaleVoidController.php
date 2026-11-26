@@ -61,6 +61,14 @@ class SaleVoidController extends Controller
         return $this->voided($sale, $number, $request->user()->id, $void);
     }
 
+    /** Un passo del rimborso dei contanti dalla cassa automatica (la pagina lo richiama finché non finisce). */
+    public function cash(Sale $sale, SaleVoidService $void, \App\Services\Vne\VneClient $vne)
+    {
+        abort_unless($sale->status === 'annullata', 422, 'La vendita non è annullata.');
+
+        return $this->respond($void->refundCash($sale, $vne));
+    }
+
     private function voided(Sale $sale, string $number, int $userId, SaleVoidService $void)
     {
         DB::transaction(fn () => $sale->update(['receipt_voided_at' => now(), 'void_receipt_number' => $number, 'voided_by' => $userId]));

@@ -103,6 +103,27 @@ abstract class VneClient
         return $this->call(['tipo' => 93]);
     }
 
+    /**
+     * Rimborso di un pagamento gia' incassato (tipo 65): la cassa eroga l'importo al cliente.
+     * Solo pagamenti creati "refundable" (tutti quelli di orio) e con esito completed o partial.
+     */
+    public function refund(string $id, ?int $saleId = null): array
+    {
+        return $this->call(['tipo' => 65, 'id' => $id, 'opName' => $this->opName()], $saleId);
+    }
+
+    /** Stato del rimborso (tipo 66): refund_status pending/completed, refunded e toRefund in centesimi. */
+    public function refundPoll(string $id, ?int $saleId = null): array
+    {
+        $payload = ['tipo' => 66, 'id' => $id];
+        $response = $this->call($payload, $saleId, log: false);
+        if (($response['refund_status'] ?? null) === 'completed') {
+            $this->log($payload, $response, $saleId);
+        }
+
+        return $response;
+    }
+
     /** Chiusura cassa (tipo 60). */
     public function closure(): array
     {

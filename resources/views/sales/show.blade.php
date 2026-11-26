@@ -72,7 +72,7 @@
                 @endphp
                 @if ($parts->count() > 1)
                     @foreach ($parts as $part)
-                        <div class="flex justify-between pl-3"><span class="text-stone-500">{{ $part->label() }}{{ $part->refunded_at ? ' · rimborsato' : '' }}</span><span>{{ euro($part->paid_cents) }}</span></div>
+                        <div class="flex justify-between pl-3"><span class="text-stone-500">{{ $part->label() }}{{ $part->refunded_at ? ($part->isCard() ? ' · rimborsato' : ($part->refunded_cents ? ' · ' . euro($part->refunded_cents) . ' restituiti dalla cassa' : ($part->refunded_cents === 0 ? ' · da restituire a mano' : ''))) : '' }}</span><span>{{ euro($part->paid_cents) }}</span></div>
                     @endforeach
                 @elseif ($sale->pos_terminal_id)
                     <div class="flex justify-between"><span class="text-stone-500">Terminale</span><span>{{ collect(\App\Services\Pos\CloudPos::terminalChoices())->firstWhere('id', $sale->pos_terminal_id)['name'] ?? '' }} · TID {{ $sale->pos_terminal_id }}</span></div>
@@ -106,7 +106,8 @@
                 </div>
             @endif
 
-            @if (in_array($sale->status, ['bozza', 'pagata', 'scontrinata', 'fatturata'], true))
+            @php $pendingCash = $sale->status === 'annullata' ? app(\App\Services\SaleVoidService::class)->cashRefunds($sale) : collect(); @endphp
+            @if (in_array($sale->status, ['bozza', 'pagata', 'scontrinata', 'fatturata'], true) || $pendingCash->isNotEmpty())
             <div class="card space-y-2 p-4" x-data="{ busy: false, msg: null, async emit(url) { this.busy = true; this.msg = null; try { const { data } = await axios.post(url); this.msg = data.message ?? null; if (data.success !== false) location.reload(); } catch (e) { this.msg = e.response?.data?.message ?? 'Errore'; } this.busy = false; } }">
                 @if ($sale->status === 'scontrinata')
                     <a href="{{ route('sales.receipt', $sale) }}" target="_blank" class="btn-light w-full">Anteprima scontrino</a>
@@ -133,6 +134,7 @@
                         $refunds = $voidService->cardRefunds($sale);
                         $cardRefund = $refunds->isNotEmpty();
                         $paidByType = $sale->paidByType();
+                        $vneCash = (int) $voidService->cashRefunds($sale)->sum('paid_cents');
                         $manualCard = $paidByType['pos'] - (int) $refunds->sum('paid_cents') - (int) $sale->payments->where('status', 'pagato')->whereNotNull('refunded_at')->sum('paid_cents');
                         $voidLabel = match (true) {
                             (bool) $sale->receipt_voided_at => 'Riprova il rimborso sulla carta',
@@ -145,7 +147,8 @@
                             $sale->status === 'scontrinata' && ! $sale->receipt_voided_at ? ['label' => 'Annullo dello scontrino', 'value' => $sale->receipt_number] : null,
                             $cardRefund ? ['label' => 'Rimborso sulla carta', 'value' => $refunds->map(fn ($p) => euro($p->paid_cents))->implode(' + ')] : null,
                             $manualCard > 0 && ! $sale->refunded_at ? ['label' => 'Da rimborsare a mano dal POS', 'value' => euro($manualCard)] : null,
-                            $paidByType['contanti'] ? ['label' => 'Contanti da restituire', 'value' => euro($paidByType['contanti'])] : null,
+                            $vneCash ? ['label' => 'Contanti restituiti dalla cassa automatica', 'value' => euro($vneCash)] : null,
+                            $paidByType['contanti'] - $vneCash > 0 ? ['label' => 'Contanti da restituire a mano', 'value' => euro($paidByType['contanti'] - $vneCash)] : null,
                             $sale->stock_unloaded_at ? ['label' => 'Magazzino', 'value' => 'la merce rientra'] : null,
                         ]));
                     @endphp
@@ -155,9 +158,17 @@
                     <button class="btn-light w-full text-red-700" :disabled="busy"
                             @click="if (!await askConfirm({ title: @js($voidLabel . '?'), items: @js($voidItems), warning: 'Non si può tornare indietro.', confirmLabel: @js($voidLabel), danger: true })) return;
                                     busy = true; msg = null;
-                                    voidSale({{ $sale->id }})
+                                    voidSale({{ $sale->id }}, (m) => msg = m)
                                         .then((r) => { if (r.state === 'done') { location.reload(); } else { msg = r.message; busy = false; } })
                                         .catch((e) => { msg = e.response?.data?.message ?? e.message; busy = false; })">{{ $voidLabel }}</button>
+                @endif
+                @if ($pendingCash->isNotEmpty())
+                    <p class="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">La cassa automatica non ha ancora restituito {{ euro($pendingCash->sum('paid_cents')) }}: controlla sulla macchina prima di dare i soldi a mano.</p>
+                    <button class="btn-light w-full" :disabled="busy"
+                            @click="busy = true; msg = null;
+                                    refundCash({{ $sale->id }}, (m) => msg = m)
+                                        .then((r) => { if (r.state === 'done') { location.reload(); } else { msg = r.message; busy = false; } })
+                                        .catch((e) => { msg = e.response?.data?.message ?? e.message; busy = false; })">Restituisci i contanti dalla cassa automatica</button>
                 @endif
                 @if ($sale->status === 'bozza' && ! $sale->paid_cents)
                     <form method="POST" action="{{ route('sales.cancel', $sale) }}" data-confirm="Annullare la vendita?" data-confirm-label="Annulla vendita" data-confirm-danger>

@@ -2,7 +2,11 @@
     <div class="mb-4 flex flex-wrap items-end gap-3">
         <h1 class="mr-auto text-xl font-bold">Vendite</h1>
         <form class="flex flex-wrap items-end gap-2">
-            <input type="date" name="day" value="{{ $day->format('Y-m-d') }}" class="input w-auto py-2">
+            @can('admin')
+                <input type="date" name="day" value="{{ $day->format('Y-m-d') }}" class="input w-auto py-2">
+            @else
+                <span class="py-2 text-sm font-semibold text-stone-600">Oggi, {{ $day->format('d/m/Y') }}</span>
+            @endcan
             <select name="status" class="input w-auto py-2">
                 <option value="">Tutti gli stati</option>
                 @foreach (\App\Models\Sale::STATUSES as $key => $label)

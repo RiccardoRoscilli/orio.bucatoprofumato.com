@@ -106,7 +106,8 @@ class SaleController extends Controller
 
     public function index(Request $request)
     {
-        $day = $request->date('day') ?? today();
+        // La cassa vede solo le vendite di oggi: il giorno lo sceglie solo l'admin
+        $day = $request->user()->can('admin') ? ($request->date('day') ?? today()) : today();
 
         $sales = Sale::with('customer', 'user', 'cashier')
             ->whereDate('created_at', $day)

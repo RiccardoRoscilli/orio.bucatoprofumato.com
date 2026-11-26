@@ -52,10 +52,12 @@ class DailyReportTest extends TestCase
         $cassa = $this->user('Cassa');
 
         $this->actingAs($cassa)->get('/rapporto')->assertForbidden();
-        $this->actingAs($cassa)->get('/rapporto/manifest.webmanifest')->assertForbidden();
-        $this->actingAs($cassa)->get('/rapporto/icona-180.png')->assertForbidden();
+        $this->actingAs($cassa)->get('/')->assertDontSee('rapporto/manifest.webmanifest');
         auth()->logout();
-        $this->get('/rapporto/manifest.webmanifest')->assertRedirect('/login');
+        $this->get('/rapporto')->assertRedirect('/login');
+        // Manifest e icone senza sessione, come li scarica Chrome su Android
+        $this->get('/rapporto/manifest.webmanifest')->assertOk();
+        $this->get('/rapporto/icona-192.png')->assertOk();
     }
 
     public function test_manifest_for_admin(): void

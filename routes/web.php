@@ -14,6 +14,11 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
+// Manifest e icone del Rapporto senza login: Chrome su Android li scarica senza sessione e altrimenti
+// non installa l'app. Non contengono dati; la pagina /rapporto resta solo per gli admin.
+Route::get('/rapporto/manifest.webmanifest', [\App\Http\Controllers\DailyReportController::class, 'manifest'])->name('report.manifest');
+Route::get('/rapporto/icona-{size}.png', [\App\Http\Controllers\DailyReportController::class, 'icon'])->whereIn('size', ['180', '192', '512'])->name('report.icon');
+
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
@@ -88,8 +93,6 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:admin')->group(function () {
         // Rapporto giornaliero per il telefono (PWA): pagina, manifest e icona solo per gli admin
         Route::get('/rapporto', [\App\Http\Controllers\DailyReportController::class, 'show'])->name('report.daily');
-        Route::get('/rapporto/manifest.webmanifest', [\App\Http\Controllers\DailyReportController::class, 'manifest'])->name('report.manifest');
-        Route::get('/rapporto/icona-{size}.png', [\App\Http\Controllers\DailyReportController::class, 'icon'])->whereIn('size', ['180', '192', '512'])->name('report.icon');
         // Riassortimento: ordini a TEA (teaerp) e scorte minime
         Route::get('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumTemplate'])->name('tea-orders.minimum');
         Route::post('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumImport'])->name('tea-orders.minimum.import');

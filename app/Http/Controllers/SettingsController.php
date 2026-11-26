@@ -243,6 +243,12 @@ class SettingsController extends Controller
         }
     }
 
+    /** Verifica la chiave Fattura24 ed elenca i sezionali con il loro ID, senza creare documenti. */
+    public function testFattura24(\App\Services\Fattura24Service $fattura24)
+    {
+        return response()->json($fattura24->numerators());
+    }
+
     public function testTea(TeaOrderClient $client)
     {
         return response()->json($client->ping());

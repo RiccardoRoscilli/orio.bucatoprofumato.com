@@ -273,7 +273,7 @@
             </section>
 
             {{-- Fattura24 --}}
-            <section id="fattura24" class="card scroll-mt-20 p-5">
+            <section id="fattura24" class="card scroll-mt-20 p-5" x-data="{ testing: false, result: null }">
                 <h2 class="font-bold">Fattura24</h2>
                 <p class="mb-4 text-sm text-stone-500">Per le fatture emesse dalla cassa.</p>
                 <div class="grid gap-3 sm:grid-cols-2">
@@ -287,6 +287,26 @@
                         <input name="fattura24[id_numerator]" value="{{ $v('fattura24.id_numerator') }}" class="input" maxlength="50">
                     </label>
                 </div>
+                <div class="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                    <button type="button" class="font-semibold text-brand-700" :disabled="testing"
+                            @click="testing = true; result = null; axios.post(@js(route('settings.test-fattura24'))).then(r => result = r.data).catch(e => result = { ok: false, message: e.response?.data?.message ?? e.message }).finally(() => testing = false)">
+                        Verifica e mostra sezionali
+                    </button>
+                    <span class="text-stone-500" x-show="!result && !testing">usa la chiave salvata, senza creare fatture</span>
+                    <span x-show="testing" class="text-stone-500">…</span>
+                    <span x-show="result" x-text="result?.message" :class="result?.ok ? 'text-emerald-700' : 'text-red-700'"></span>
+                </div>
+                <table x-show="result?.numerators?.length" x-cloak class="mt-3 w-full text-sm">
+                    <thead><tr class="text-left text-xs uppercase tracking-wide text-stone-500"><th class="py-1 pr-3">ID</th><th class="py-1">Sezionale</th></tr></thead>
+                    <tbody>
+                        <template x-for="n in result?.numerators ?? []" :key="n.id">
+                            <tr class="border-t border-stone-100" :class="n.selected && 'bg-brand-50 font-semibold'">
+                                <td class="py-1.5 pr-3 font-mono" x-text="n.id"></td>
+                                <td class="py-1.5" x-text="n.preview + (n.selected ? ' · in uso' : '')"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
             </section>
 
             {{-- Chiusura giornata --}}

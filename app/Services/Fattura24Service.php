@@ -119,6 +119,52 @@ class Fattura24Service
         ];
     }
 
+    /**
+     * Sezionali dell'account (GetNumerator, sola lettura): servono per sapere quale ID mettere in
+     * Configurazione, perché il pannello di Fattura24 mostra solo il formato (es. 01-ORIO-2026).
+     *
+     * @return array{ok: bool, message: string, numerators?: list<array{id: string, preview: string, selected: bool}>}
+     */
+    public function numerators(): array
+    {
+        if (! $this->isConfigured()) {
+            return ['ok' => false, 'message' => 'Chiave Fattura24 non impostata: salvala e riprova.'];
+        }
+
+        try {
+            $response = Http::asForm()->timeout(20)->post(config('orio.fattura24.base_uri') . 'GetNumerator', [
+                'apiKey' => config('orio.fattura24.api_key'),
+            ]);
+            $xml = simplexml_load_string($response->body(), 'SimpleXMLElement', LIBXML_NOCDATA);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Errore di comunicazione con Fattura24: ' . $e->getMessage()];
+        }
+
+        if ($xml === false) {
+            return ['ok' => false, 'message' => 'Risposta non valida da Fattura24.'];
+        }
+        if (isset($xml->returnCode) && (int) $xml->returnCode !== 0) {
+            return ['ok' => false, 'message' => 'Fattura24: ' . $xml->description];
+        }
+
+        $current = (string) config('orio.fattura24.id_numerator');
+        $numerators = [];
+        foreach ($xml->xpath('//sezionale') ?: [] as $s) {
+            $numerators[] = [
+                'id' => (string) $s->id,
+                'preview' => (string) ($s->anteprima ?: $s->code),
+                'selected' => $current !== '' && $current === (string) $s->id,
+            ];
+        }
+
+        $message = 'Chiave valida, ' . count($numerators) . ' sezionali.';
+        if ($current !== '' && ! collect($numerators)->contains('selected', true)) {
+            $message .= " Attenzione: il sezionale impostato ({$current}) non è tra questi.";
+        }
+
+        return ['ok' => true, 'message' => $message, 'numerators' => $numerators];
+    }
+
     public function getPdf(string $docId): ?string
     {
         if (! $this->isConfigured()) {

@@ -130,6 +130,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/configurazione/fondo-cassa/stato', [\App\Http\Controllers\SettingsController::class, 'refillStatus'])->name('settings.refill.status');
         Route::post('/configurazione/fondo-cassa/fine', [\App\Http\Controllers\SettingsController::class, 'refillEnd'])->name('settings.refill.end');
         Route::post('/configurazione/fondo-cassa/conferma', [\App\Http\Controllers\SettingsController::class, 'refillConfirm'])->name('settings.refill.confirm');
+        Route::post('/configurazione/prova-fattura24', [\App\Http\Controllers\SettingsController::class, 'testFattura24'])->name('settings.test-fattura24');
         Route::post('/configurazione/prova-tea', [\App\Http\Controllers\SettingsController::class, 'testTea'])->name('settings.test-tea');
 
         Route::get('/openapi', [OpenApiCallController::class, 'index'])->name('openapi-calls');

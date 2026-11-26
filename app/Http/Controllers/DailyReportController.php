@@ -60,10 +60,11 @@ class DailyReportController extends Controller
     public function manifest()
     {
         return response()->json([
-            'name' => 'Orio Rapporto',
-            'short_name' => 'Rapporto',
+            'name' => 'Rapporto Orio',
+            'short_name' => 'Rapporto Orio',
             'start_url' => route('report.daily', absolute: false),
-            'scope' => '/rapporto',
+            // Tutto il sito nello scope: il login deve restare dentro l'app, altrimenti si apre in Safari e il cookie non arriva all'app
+            'scope' => '/',
             'display' => 'standalone',
             'background_color' => '#f5f5f4',
             'theme_color' => '#1f7169',

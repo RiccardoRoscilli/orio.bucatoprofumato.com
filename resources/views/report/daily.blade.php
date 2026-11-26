@@ -3,13 +3,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Rapporto · Orio</title>
+    <title>Rapporto Orio</title>
     {{-- PWA: pagina e manifest solo per gli admin, l'installazione dalla Home parte da qui --}}
     <link rel="manifest" href="{{ route('report.manifest') }}">
     <meta name="theme-color" content="#1f7169">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Orio Rapporto">
+    <meta name="apple-mobile-web-app-title" content="Rapporto Orio">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="{{ route('report.icon', 180) }}">
     @vite(['resources/css/app.css'])

@@ -91,7 +91,9 @@
                     @forelse ($closures as $closure)
                         @php
                             $orio = $closure->orio_cash_cents + $closure->orio_card_cents;
-                            $vneCash = $closure->vne_closed_at ? (int) ($closure->vne_data['total_payments'] ?? 0) : null;
+                            // Segnata come risolta senza chiudere la cassa automatica: niente confronto
+                            $vneSkipped = (bool) ($closure->vne_data['skipped'] ?? false);
+                            $vneCash = $closure->vne_closed_at && ! $vneSkipped ? (int) ($closure->vne_data['total_payments'] ?? 0) : null;
                         @endphp
                         <tr>
                             <td class="py-2">{{ $closure->created_at->format('d/m H:i') }}<div class="text-xs text-stone-500">{{ $closure->automatic ? 'Automatica · ' : '' }}{{ $closure->user->name }}{{ $closure->period_from ? ' · dal ' . $closure->period_from->format('d/m H:i') : '' }}</div></td>
@@ -102,7 +104,7 @@
                                     <span class="badge bg-stone-100 text-stone-500">—</span>
                                 @endif
                             </td>
-                            <td class="py-2 text-right tabular-nums">{!! $vneCash === null ? '<span class="text-amber-700">da chiudere</span>' : euro($vneCash) !!}</td>
+                            <td class="py-2 text-right tabular-nums">{!! $vneSkipped ? '<span class="text-stone-500">non chiusa</span>' : ($vneCash === null ? '<span class="text-amber-700">da chiudere</span>' : euro($vneCash)) !!}</td>
                             <td class="py-2 text-right tabular-nums">{{ euro($orio) }}</td>
                             <td class="py-2 text-right font-semibold tabular-nums {{ $vneCash !== null && $vneCash - $orio ? 'text-red-600' : 'text-brand-700' }}">{{ $vneCash === null ? '' : euro($vneCash - $orio) }}</td>
                         </tr>

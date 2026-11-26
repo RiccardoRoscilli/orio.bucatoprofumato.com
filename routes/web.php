@@ -85,6 +85,10 @@ Route::middleware('auth')->group(function () {
     Route::put('/ordini-tea/in-preparazione', [\App\Http\Controllers\TeaOrderController::class, 'saveOpen'])->name('tea-orders.save-open');
 
     Route::middleware('can:admin')->group(function () {
+        // Rapporto giornaliero per il telefono (PWA): pagina, manifest e icona solo per gli admin
+        Route::get('/rapporto', [\App\Http\Controllers\DailyReportController::class, 'show'])->name('report.daily');
+        Route::get('/rapporto/manifest.webmanifest', [\App\Http\Controllers\DailyReportController::class, 'manifest'])->name('report.manifest');
+        Route::get('/rapporto/icona-{size}.png', [\App\Http\Controllers\DailyReportController::class, 'icon'])->whereIn('size', ['180', '192', '512'])->name('report.icon');
         // Riassortimento: ordini a TEA (teaerp) e scorte minime
         Route::get('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumTemplate'])->name('tea-orders.minimum');
         Route::post('/ordini-tea/scorte-minime', [\App\Http\Controllers\TeaOrderController::class, 'minimumImport'])->name('tea-orders.minimum.import');

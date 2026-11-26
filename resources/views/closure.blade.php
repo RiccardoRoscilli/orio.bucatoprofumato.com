@@ -19,6 +19,21 @@
             </button>
         </div>
 
+        <section class="card mb-4 p-4">
+            <h2 class="mb-3 font-bold">Stato cassa automatica</h2>
+            @if ($vneDeferred)
+                {{-- Cassa collegata dal tablet: lo stato lo chiede il browser, sulla rete del negozio --}}
+                <div x-data="{ html: null, error: null }"
+                     x-init="axios.post(@js(route('closure.vne-status'))).then(r => html = r.data).catch(e => error = e.response?.data?.message ?? e.message)">
+                    <p x-show="!html && !error" class="text-sm text-stone-500">Lettura dello stato dal tablet…</p>
+                    <p x-show="error" x-cloak x-text="error" class="rounded-lg bg-red-50 p-3 text-sm text-red-700"></p>
+                    <div x-html="html"></div>
+                </div>
+            @else
+                @include('closure-vne-status')
+            @endif
+        </section>
+
         <p class="mb-4 text-sm text-stone-600">
             Il pulsante fa la <strong>chiusura fiscale della stampante RT</strong> (obbligatoria entro le 24, anche senza incassi) e poi la <strong>chiusura della cassa automatica</strong>.
         </p>
@@ -65,22 +80,7 @@
         @endif
     </div>
 
-    <div class="mt-6 grid gap-5 lg:grid-cols-2">
-        <section class="card p-4">
-            <h2 class="mb-3 font-bold">Stato cassa automatica</h2>
-            @if ($vneDeferred)
-                {{-- Cassa collegata dal tablet: lo stato lo chiede il browser, sulla rete del negozio --}}
-                <div x-data="{ html: null, error: null }"
-                     x-init="axios.post(@js(route('closure.vne-status'))).then(r => html = r.data).catch(e => error = e.response?.data?.message ?? e.message)">
-                    <p x-show="!html && !error" class="text-sm text-stone-500">Lettura dello stato dal tablet…</p>
-                    <p x-show="error" x-cloak x-text="error" class="rounded-lg bg-red-50 p-3 text-sm text-red-700"></p>
-                    <div x-html="html"></div>
-                </div>
-            @else
-                @include('closure-vne-status')
-            @endif
-        </section>
-
+    <div class="mt-6">
         <section class="card p-4">
             <h2 class="mb-3 font-bold">Ultime chiusure</h2>
             <table class="w-full text-left text-sm">

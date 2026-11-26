@@ -30,7 +30,7 @@
                     // Voci dell'admin raccolte in un menu, per non allargare la barra.
                     // La prova della stampante si apre dalla Configurazione; OpenAPI non ha voce (dati solo per la rifatturazione)
                     $adminNav = auth()->user()->can('admin')
-                        ? ['report.daily' => 'Rapporto giornaliero', 'attendances.index' => 'Presenze', 'badges.index' => 'Badge', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
+                        ? ['attendances.index' => 'Presenze', 'badges.index' => 'Badge', 'users.index' => 'Utenti', 'settings' => 'Configurazione']
                         : [];
                     // Ordini TEA: due voci, il nuovo ordine e lo storico (con il dettaglio di ogni ordine)
                     $activeRoutes = ['tea-orders.index' => ['tea-orders.index'], 'tea-orders.sent' => ['tea-orders.sent', 'tea-orders.show']];

@@ -10,27 +10,9 @@
     </div>
 
     <div class="grid gap-5 lg:grid-cols-[1fr_340px]" x-data="{ busy: false, msg: null, async post(url) { this.busy = true; this.msg = null; try { const { data } = await axios.post(url); this.msg = data.message; setTimeout(() => location.reload(), 900); } catch (e) { this.msg = e.response?.data?.message ?? e.message; this.busy = false; } } }">
-        <section class="card overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <thead class="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
-                    <tr><th class="px-4 py-2">Prodotto</th><th class="px-4 py-2 text-right">Giacenza all'ordine</th><th class="px-4 py-2 text-right">Q.tà</th><th class="px-4 py-2 text-right">Prezzo</th><th class="px-4 py-2 text-right">Totale</th></tr>
-                </thead>
-                <tbody class="divide-y divide-stone-100">
-                    @foreach ($order->items as $item)
-                        <tr>
-                            <td class="px-4 py-2"><div class="font-semibold">{{ $item->name }}</div><div class="text-xs text-stone-500">{{ $item->sku }}</div></td>
-                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->stock_at_order === null ? '—' : rtrim(rtrim(number_format($item->stock_at_order, 3, ',', ''), '0'), ',') }}</td>
-                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->qty }}</td>
-                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->price_cents !== null ? euro($item->price_cents) : '—' }}</td>
-                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->row_total_cents !== null ? euro($item->row_total_cents) : '—' }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </section>
 
         {{-- Arrivo della merce: spunta delle righe dei DDT di TEA, in magazzino solo alla conferma del carico --}}
-        <section class="space-y-4 lg:col-start-1">
+        <section class="space-y-4 lg:col-start-1" x-data="{ q: '', todo: false }">
             <div>
                 <h2 class="text-lg font-bold">Arrivo merce (DDT di TEA)</h2>
                 <p class="text-sm text-stone-600">
@@ -39,6 +21,13 @@
                     Quando hai spuntato tutto premi «Conferma carico»: solo allora la merce entra in magazzino (scatole × pezzi per scatola) e le quantità non si cambiano più.
                 </p>
             </div>
+
+            @if ($order->ddts->isNotEmpty())
+                <div class="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-xl bg-white/95 p-3 shadow-sm ring-1 ring-stone-200 backdrop-blur">
+                    <input x-model="q" type="search" class="input min-w-0 flex-1 py-2" placeholder="Cerca prodotto, SKU o EAN (anche col lettore)" aria-label="Cerca nel DDT" @keydown.escape="q = ''">
+                    <label class="flex items-center gap-2 text-sm font-semibold text-stone-700"><input x-model="todo" type="checkbox" class="h-5 w-5"> Solo da spuntare</label>
+                </div>
+            @endif
 
             @forelse ($order->ddts as $ddt)
                 @php
@@ -74,6 +63,7 @@
                                         info: @js($item->received_at ? $item->received_at->format('d/m H:i') . ' · ' . ($item->receiver?->name ?? '') : ''),
                                         shipped: @js($fmt($item->boxes($item->qty_shipped))),
                                         perBox: {{ max(1, $item->pcs_per_box) }},
+                                        hay: @js(mb_strtolower($item->name . ' ' . $item->sku . ' ' . ($item->product?->ean ?? ''))),
                                         rowBusy: false, rowError: null,
                                         get pieces() { return (parseInt(this.boxes, 10) || 0) * this.perBox },
                                         async save() {
@@ -89,7 +79,7 @@
                                             } catch (e) { this.rowError = e.response?.data?.message ?? e.message; }
                                             this.rowBusy = false;
                                         }
-                                    }" :class="saved !== null ? (saved !== shipped ? 'bg-amber-50' : 'bg-brand-50/40') : ''">
+                                    }" x-show="(!todo || saved === null) && (!q.trim() || hay.includes(q.trim().toLowerCase()))" :class="saved !== null ? (saved !== shipped ? 'bg-amber-50' : 'bg-brand-50/40') : ''">
                                     <td class="px-4 py-2">
                                         <div class="font-semibold">{{ $item->name }}</div>
                                         <div class="text-xs text-stone-500">{{ $item->sku }}</div>
@@ -127,6 +117,26 @@
                 </p>
             @endforelse
         </section>
+
+        <details class="card overflow-x-auto lg:col-start-1" @if ($order->ddts->isEmpty()) open @endif>
+            <summary class="cursor-pointer px-4 py-3 font-semibold">Righe dell'ordine ({{ $order->items->count() }})</summary>
+            <table class="w-full text-left text-sm">
+                <thead class="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                    <tr><th class="px-4 py-2">Prodotto</th><th class="px-4 py-2 text-right">Giacenza all'ordine</th><th class="px-4 py-2 text-right">Q.tà</th><th class="px-4 py-2 text-right">Prezzo</th><th class="px-4 py-2 text-right">Totale</th></tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100">
+                    @foreach ($order->items as $item)
+                        <tr>
+                            <td class="px-4 py-2"><div class="font-semibold">{{ $item->name }}</div><div class="text-xs text-stone-500">{{ $item->sku }}</div></td>
+                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->stock_at_order === null ? '—' : rtrim(rtrim(number_format($item->stock_at_order, 3, ',', ''), '0'), ',') }}</td>
+                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->qty }}</td>
+                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->price_cents !== null ? euro($item->price_cents) : '—' }}</td>
+                            <td class="px-4 py-2 text-right tabular-nums">{{ $item->row_total_cents !== null ? euro($item->row_total_cents) : '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </details>
 
         <aside class="space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
             <div class="card space-y-2 p-4 text-sm">

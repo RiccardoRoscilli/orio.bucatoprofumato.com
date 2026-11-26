@@ -78,7 +78,7 @@ class TeaOrderController extends Controller
             $this->syncFromTea($teaOrder, $client);
         }
 
-        return view('tea-orders.show', ['order' => $teaOrder->load('items', 'user:id,name', 'ddts.items.receiver:id,name', 'ddts.confirmer:id,name')]);
+        return view('tea-orders.show', ['order' => $teaOrder->load('items', 'user:id,name', 'ddts.items.receiver:id,name', 'ddts.items.product:id,ean', 'ddts.confirmer:id,name')]);
     }
 
     /**

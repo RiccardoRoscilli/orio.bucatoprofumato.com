@@ -9,13 +9,13 @@ class SyncBucatoProducts extends Command
 {
     protected $signature = 'products:sync';
 
-    protected $description = 'Sincronizza i prodotti e i prezzi da bucatoprofumato.com';
+    protected $description = 'Aggiunge i prodotti nuovi da bucatoprofumato.com (quelli già in Orio non si toccano)';
 
     public function handle(BucatoProductSyncService $service): int
     {
         $stats = $service->sync();
 
-        $this->info("Prodotti: {$stats['created']} nuovi, {$stats['updated']} aggiornati, {$stats['deactivated']} disattivati, {$stats['price_changes']} prezzi cambiati sul sito.");
+        $this->info("Prodotti nuovi dal sito: {$stats['created']}.");
 
         return self::SUCCESS;
     }

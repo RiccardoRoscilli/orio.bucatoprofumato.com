@@ -71,6 +71,24 @@ class StockTest extends TestCase
         $this->assertDatabaseHas('stock_movements', ['sale_id' => $sale->id, 'type' => 'storno', 'qty' => 2]);
     }
 
+    public function test_sold_basket_is_deactivated_and_comes_back_if_voided(): void
+    {
+        $other = $this->product;
+        $this->product = Product::create(['sku' => 'CESTO00011', 'name' => 'Cesto', 'price_cents' => 1300, 'vat_rate' => 22, 'active' => true, 'in_stock' => true, 'shop_only' => true]);
+
+        $sale = $this->cardSale(1);
+        $this->assertFalse($this->product->fresh()->active);
+        $this->actingAs($this->operator)->getJson('/prodotti/cerca?q=CESTO00011')->assertJsonCount(0, 'products');
+
+        $this->post("/vendite/{$sale->id}/annulla")->assertRedirect();
+        $this->assertTrue($this->product->fresh()->active);
+
+        // I prodotti normali restano attivi
+        $this->product = $other;
+        $this->cardSale(1);
+        $this->assertTrue($other->fresh()->active);
+    }
+
     public function test_only_admin_can_adjust_inventory(): void
     {
         $this->actingAs($this->operator)->postJson('/magazzino/inventario', ['product_id' => $this->product->id, 'counted' => 7])->assertForbidden();

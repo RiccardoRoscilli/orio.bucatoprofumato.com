@@ -42,6 +42,8 @@ class StockService
             foreach ($locked->items()->whereNotNull('product_id')->get() as $item) {
                 $this->move($item->product_id, 'vendita', -$item->qty, ['sale_id' => $sale->id, 'user_id' => $sale->user_id]);
             }
+            // I cesti sono pezzi unici: venduto, non si può più vendere
+            $this->setBasketsActive($locked, false);
 
             $locked->forceFill(['stock_unloaded_at' => now()])->saveQuietly();
             $sale->stock_unloaded_at = $locked->stock_unloaded_at;
@@ -65,9 +67,18 @@ class StockService
                 }
             }
 
+            $this->setBasketsActive($locked, true);
+
             $locked->forceFill(['stock_unloaded_at' => null])->saveQuietly();
             $sale->stock_unloaded_at = null;
         });
+    }
+
+    private function setBasketsActive(Sale $sale, bool $active): void
+    {
+        Product::whereIn('id', $sale->items()->whereNotNull('product_id')->pluck('product_id'))->get()
+            ->filter->isBasket()
+            ->each(fn (Product $p) => $p->forceFill(['active' => $active])->saveQuietly());
     }
 
     private function move(int $productId, string $type, float $qty, array $attributes): StockMovement

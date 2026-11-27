@@ -29,18 +29,22 @@ class ShopAvailabilityTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('items');
     }
 
-    public function test_sync_keeps_products_created_in_orio(): void
+    public function test_sync_only_adds_new_products(): void
     {
         \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(
-            "sku,Name,Status,Quantity,ean,Category,Price,\"In Stock\"\nSITO1,Dal sito,Enabled,,,Essenze,10,Yes\n"
+            "sku,Name,Status,Quantity,ean,Category,Price,\"In Stock\"\nSITO1,Dal sito,Enabled,,,Essenze,10,Yes\nGIA,Nome sul sito,Disabled,,,Essenze,99,No\n"
         )]);
         Product::create(['sku' => 'VECCHIO', 'name' => 'Tolto dal sito', 'price_cents' => 500, 'vat_rate' => 22, 'active' => true, 'in_stock' => true]);
+        Product::create(['sku' => 'GIA', 'name' => 'Nome in Orio', 'price_cents' => 500, 'vat_rate' => 22, 'active' => true, 'in_stock' => true]);
         $orio = Product::create(['sku' => 'ORIO-COF3', 'name' => 'Cofanetto vuoto 3 posti', 'price_cents' => 100, 'vat_rate' => 22, 'active' => true, 'in_stock' => true, 'shop_only' => true]);
 
-        app(\App\Services\BucatoProductSyncService::class)->sync();
+        $this->assertSame(['created' => 1], app(\App\Services\BucatoProductSyncService::class)->sync());
 
-        $this->assertFalse(Product::where('sku', 'VECCHIO')->value('active'));
+        $this->assertSame(1000, Product::where('sku', 'SITO1')->value('price_cents'));
+        // Già in Orio o non più sul sito: restano come sono
+        $this->assertTrue(Product::where('sku', 'VECCHIO')->value('active'));
+        $gia = Product::where('sku', 'GIA')->first();
+        $this->assertSame(['Nome in Orio', 500, true, true], [$gia->name, $gia->price_cents, $gia->active, $gia->in_stock]);
         $this->assertTrue($orio->fresh()->active);
-        $this->assertSame(100, $orio->fresh()->price_cents);
     }
 }

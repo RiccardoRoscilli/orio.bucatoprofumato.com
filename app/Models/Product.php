@@ -87,6 +87,12 @@ class Product extends Model
         return $this->site_price_cents !== null && $this->price_cents !== $this->site_price_cents;
     }
 
+    /** Cesto composto da teaerp (SKU CESTO00001, vecchi CESTO-00001): pezzo unico. */
+    public function isBasket(): bool
+    {
+        return str_starts_with(strtoupper($this->sku), 'CESTO');
+    }
+
     /** Contenuto del cesto (vuoto per i prodotti normali). */
     public function components(): HasMany
     {

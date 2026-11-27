@@ -29,6 +29,18 @@ class ShopAvailabilityTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('items');
     }
 
+    public function test_box_barcode_in_ean2_finds_the_product(): void
+    {
+        $operator = \App\Models\User::create(['name' => 'Op', 'username' => 'op2', 'password' => 'x', 'active' => true]);
+        Product::create(['sku' => 'LA00516STSP', 'ean' => '0806812582228', 'ean2' => '0806812583560', 'name' => 'Spray per tessuti Sport', 'price_cents' => 1000, 'vat_rate' => 22, 'active' => true, 'sold_in_shop' => true, 'in_stock' => true]);
+
+        // Scatola letta dallo scanner, anche senza lo zero iniziale, e ricerca scritta a mano
+        foreach (['0806812583560', '806812583560', '0806812582228'] as $code) {
+            $this->actingAs($operator)->getJson("/prodotti/barcode/{$code}")->assertOk()->assertJsonPath('products.0.sku', 'LA00516STSP');
+        }
+        $this->getJson('/prodotti/cerca?q=812583560')->assertJsonPath('products.0.sku', 'LA00516STSP');
+    }
+
     public function test_sync_only_adds_new_products(): void
     {
         \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response(

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Product extends Model
 {
     protected $fillable = [
-        'sku', 'ean', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
+        'sku', 'ean', 'ean2', 'name', 'format', 'category', 'categories', 'image_url', 'short_description', 'description',
         'site_price_cents', 'price_cents', 'promo_price_cents', 'promo_from', 'promo_until', 'vat_rate', 'active', 'sold_in_shop', 'shop_only', 'stock_min', 'reorder_qty', 'pcs_per_box', 'in_stock', 'synced_at',
     ];
 
@@ -42,7 +42,7 @@ class Product extends Model
             ? [$code]
             : array_unique([$code, $stripped, '0' . $stripped, '00' . $stripped, '000' . $stripped]);
 
-        return $query->where(fn ($q) => $q->whereIn('ean', $variants)->orWhereIn('sku', $variants));
+        return $query->where(fn ($q) => $q->whereIn('ean', $variants)->orWhereIn('ean2', $variants)->orWhereIn('sku', $variants));
     }
 
     /** Vendibili in cassa: attivi sul sito e scelti dalla titolare per il negozio. */
@@ -108,7 +108,7 @@ class Product extends Model
         $like = "%{$term}%";
 
         return $query->where(function ($q) use ($like, $extraColumns) {
-            $q->where('name', 'like', $like)->orWhere('sku', 'like', $like)->orWhere('ean', 'like', $like);
+            $q->where('name', 'like', $like)->orWhere('sku', 'like', $like)->orWhere('ean', 'like', $like)->orWhere('ean2', 'like', $like);
             foreach ($extraColumns as $column) {
                 $q->orWhere($column, 'like', $like);
             }

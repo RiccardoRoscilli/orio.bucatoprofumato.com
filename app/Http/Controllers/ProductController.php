@@ -56,7 +56,7 @@ class ProductController extends Controller
                 'image_url' => $p->image_url,
                 'name' => $p->name,
                 'sku' => $p->sku,
-                'ean' => $p->ean,
+                'ean' => $p->ean2 && ltrim($p->ean2, '0') !== ltrim((string) $p->ean, '0') ? trim($p->ean . ' / ' . $p->ean2, ' /') : $p->ean,
                 'format' => $p->format,
                 'category' => $p->category,
                 'active' => $p->active,

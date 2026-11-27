@@ -68,6 +68,23 @@ class TeaCestiOrderTest extends TestCase
         $this->assertNotContains('CESTO-1', collect($this->actingAs($user)->getJson('/prodotti/cerca?q=ammorbidente')->json('products'))->pluck('sku'));
     }
 
+    public function test_catalog_sync_does_not_deactivate_baskets(): void
+    {
+        Product::create(['sku' => 'CESTO-OLD', 'name' => 'Cesto vecchio', 'price_cents' => 1300, 'vat_rate' => 22, 'active' => false, 'sold_in_shop' => true, 'pcs_per_box' => 1]);
+        $this->postJson('/api/tea/cesti-orders', $this->payload(['unit_price_cents' => 3050]), ['X-Tea-Secret' => 'segreto'])->assertCreated();
+        // Cesto arrivato prima della correzione e già disattivato dal sync: torna attivo alla spedizione dopo
+        $payload = $this->payload(['unit_price_cents' => 3050]);
+        $payload['reference'] = 'VE-00101/2026';
+        $payload['items'][0]['sku'] = 'CESTO-OLD';
+        $this->postJson('/api/tea/cesti-orders', $payload, ['X-Tea-Secret' => 'segreto'])->assertCreated();
+
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response("sku,Price\nALTRO,9.90\n")]);
+        app(\App\Services\BucatoProductSyncService::class)->sync();
+
+        $this->assertTrue(Product::where('sku', 'CESTO-1')->value('active'));
+        $this->assertTrue(Product::where('sku', 'CESTO-OLD')->value('active'));
+    }
+
     public function test_wrong_secret_is_rejected(): void
     {
         $this->postJson('/api/tea/cesti-orders', $this->payload(['unit_price_cents' => 3050]), ['X-Tea-Secret' => 'no'])

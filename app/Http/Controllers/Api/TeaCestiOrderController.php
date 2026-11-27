@@ -83,10 +83,17 @@ class TeaCestiOrderController extends Controller
                         'vat_rate' => $vatRate,
                         'active' => true,
                         'sold_in_shop' => true,
+                        // Non è sul sito: senza shop_only il sync notturno del catalogo lo disattiva
+                        'shop_only' => true,
                         'pcs_per_box' => 1,
                         'in_stock' => true,
                     ]
                 );
+
+                // Cesti arrivati prima di shop_only: il sync li aveva disattivati
+                if (! $product->shop_only && ! $product->synced_at) {
+                    $product->update(['shop_only' => true, 'active' => true]);
+                }
 
                 // Il contenuto invece lo aggiorniamo sempre: è l'ultima ricetta nota del cesto.
                 if (isset($item['components'])) {

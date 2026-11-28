@@ -1,5 +1,5 @@
 <x-layout title="Cassa">
-    <div x-data="cassa(@js($initial), @js($posDriver), @js($posTerminals), @js($attendance))" class="grid gap-5 lg:grid-cols-[1fr_360px]"
+    <div x-data="cassa(@js($initial), @js($posDriver), @js($posTerminals), @js($attendance), @js($discountPercent))" class="grid gap-5 lg:grid-cols-[1fr_360px]"
          @orio:badge.window="onBadge($event)" @orio:present.window="present = $event.detail">
         {{-- Scansione e righe della vendita --}}
         <section class="space-y-4">
@@ -70,8 +70,11 @@
                             <input class="h-11 w-14 border-y border-stone-200 text-center text-lg font-semibold [appearance:textfield] focus:outline-none" inputmode="numeric" x-model.number="row.qty">
                             <button type="button" @click="changeQty(row, 1)" class="h-11 w-11 rounded-r-xl bg-stone-100 text-xl font-bold hover:bg-stone-200" aria-label="Aumenta">+</button>
                         </div>
-                        {{-- Prezzo di listino, non modificabile: in negozio niente sconti né promozioni --}}
-                        <div class="w-20 text-right text-sm text-stone-500 tabular-nums" x-text="'€ ' + row.price + (parseFloat(row.qty) !== 1 ? ' cad.' : '')"></div>
+                        {{-- Prezzo di listino, non modificabile: l'unico sconto in negozio è quello dipendenti --}}
+                        <div class="w-20 text-right text-sm tabular-nums">
+                            <div class="text-stone-500" :class="employeeDiscount && 'text-xs line-through'" x-text="'€ ' + row.price + (!employeeDiscount && parseFloat(row.qty) !== 1 ? ' cad.' : '')"></div>
+                            <div x-show="employeeDiscount" x-cloak class="font-semibold text-brand-700" x-text="euro(unitCents(row)) + (parseFloat(row.qty) !== 1 ? ' cad.' : '')"></div>
+                        </div>
                         <div class="w-20 text-right font-bold tabular-nums" x-text="euro(lineCents(row))"></div>
                         <button type="button" class="flex h-11 w-9 items-center justify-center rounded-lg text-2xl text-stone-400 hover:bg-red-50 hover:text-red-600" @click="removeRow(index)" aria-label="Rimuovi riga">×</button>
                     </div>
@@ -158,6 +161,22 @@
             </div>
 
             <div class="card p-4">
+                {{-- Dipendenti del centro commerciale: la cassiera controlla il tesserino --}}
+                <button type="button" class="mb-4 flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm ring-1"
+                        :class="employeeDiscount ? 'bg-brand-50 ring-brand-200' : 'bg-white ring-stone-200 hover:bg-stone-50'"
+                        :disabled="busy" @click="toggleEmployeeDiscount()" :aria-pressed="employeeDiscount">
+                    <span>
+                        <span class="block font-semibold" :class="employeeDiscount && 'text-brand-800'" x-text="`Sconto dipendenti ${discountPercent}%`"></span>
+                        <span class="block text-xs text-stone-500">Dipendenti del centro commerciale, con tesserino</span>
+                    </span>
+                    <span class="relative h-6 w-11 shrink-0 rounded-full transition" :class="employeeDiscount ? 'bg-brand-600' : 'bg-stone-300'">
+                        <span class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all" :class="employeeDiscount ? 'left-[22px]' : 'left-0.5'"></span>
+                    </span>
+                </button>
+                <div class="mb-1 flex items-baseline justify-between text-sm text-stone-500" x-show="employeeDiscount && discountCents > 0" x-cloak>
+                    <span>Sconto</span>
+                    <span class="tabular-nums" x-text="'− ' + euro(discountCents)"></span>
+                </div>
                 <div class="flex items-baseline justify-between">
                     <span class="text-stone-500">Totale</span>
                     <span class="text-4xl font-bold tabular-nums" x-text="euro(totalCents)"></span>

@@ -24,6 +24,9 @@
                         @endforeach
                     </tbody>
                     <tfoot>
+                        @if ($sale->discount_percent)
+                            <tr class="border-t border-stone-200 text-stone-500"><td colspan="4" class="px-4 py-2 text-right">Sconto dipendenti {{ $sale->discount_percent }}% sul listino</td><td class="px-4 py-2 text-right tabular-nums">− {{ euro($sale->discountCents()) }}</td></tr>
+                        @endif
                         <tr class="border-t border-stone-200"><td colspan="4" class="px-4 py-3 text-right font-semibold">Totale</td><td class="px-4 py-3 text-right text-lg font-bold tabular-nums">{{ euro($sale->total_cents) }}</td></tr>
                     </tfoot>
                 </table>
@@ -66,6 +69,9 @@
             <div class="card space-y-2 p-4 text-sm">
                 <div class="flex justify-between"><span class="text-stone-500">Data</span><span>{{ $sale->created_at->format('d/m/Y H:i') }}</span></div>
                 <div class="flex justify-between"><span class="text-stone-500">{{ $sale->cashier_id ? 'Cassiera' : 'Operatore' }}</span><span>{{ $sale->cashierName() }}</span></div>
+                @if ($sale->discount_percent)
+                    <div class="flex justify-between gap-3"><span class="text-stone-500">Sconto dipendenti</span><span class="text-right">{{ $sale->discount_percent }}%</span></div>
+                @endif
                 <div class="flex justify-between"><span class="text-stone-500">Pagamento</span><span>{{ \App\Models\Sale::PAYMENT_METHODS[$sale->payment_method] ?? '—' }}</span></div>
                 @php
                     $parts = $sale->payments->where('status', 'pagato');

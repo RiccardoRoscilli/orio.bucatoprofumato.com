@@ -47,8 +47,12 @@ function pickTerminal(terminals) {
 
 const BADGE = /^orio[a-z0-9]{8}$/i;
 
-export default (initial = null, posDriver = 'manual', posTerminals = [], attendance = { present: [], required: false }) => ({
+export default (initial = null, posDriver = 'manual', posTerminals = [], attendance = { present: [], required: false }, discountPercent = 0) => ({
     rows: [],
+
+    // Sconto dipendenti del centro commerciale (tesserino): il prezzo lo ricalcola il server
+    discountPercent,
+    employeeDiscount: false,
 
     // Bozza salvata sul server a ogni modifica del carrello
     draftId: null,
@@ -115,6 +119,14 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
         return this.rows.reduce((sum, r) => sum + this.lineCents(r), 0);
     },
 
+    get listTotalCents() {
+        return this.rows.reduce((sum, r) => sum + Math.round((parseFloat(r.qty) || 0) * toCents(r.price)), 0);
+    },
+
+    get discountCents() {
+        return this.listTotalCents - this.totalCents;
+    },
+
     get totalPieces() {
         return this.rows.reduce((sum, r) => sum + (parseFloat(r.qty) || 0), 0);
     },
@@ -140,6 +152,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
             this.rows.map((r) => [r.product_id, r.qty, r.price]),
             this.documentType,
             this.customer.id,
+            this.employeeDiscount,
         ]);
     },
 
@@ -149,6 +162,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
         this.rows = state.rows.map((row) => ({ ...row, key: nextKey() }));
         this.documentType = state.document_type;
         if (state.customer) this.selectCustomer(state.customer);
+        this.employeeDiscount = !!state.employee_discount;
         this.draftId = state.sale.id;
 
         this.parts = state.parts ?? [];
@@ -186,6 +200,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
         const payload = {
             document_type: this.documentType,
             customer_id: this.customer.id,
+            employee_discount: this.employeeDiscount,
             items: this.validRows.map((r) => ({ product_id: r.product_id, qty: r.qty, price: String(r.price).replace(',', '.') })),
         };
         this.saveChain = this.saveChain.then(async () => {
@@ -327,8 +342,19 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
         this.focusScan();
     },
 
+    // Prezzo unitario incassato: listino, meno lo sconto dipendenti se c'e' (come sul server)
+    unitCents(row) {
+        const list = toCents(row.price);
+        return this.employeeDiscount ? list - Math.round(list * this.discountPercent / 100) : list;
+    },
+
     lineCents(row) {
-        return Math.round((parseFloat(row.qty) || 0) * Math.round(parsePrice(row.price) * 100));
+        return Math.round((parseFloat(row.qty) || 0) * this.unitCents(row));
+    },
+
+    toggleEmployeeDiscount() {
+        this.employeeDiscount = !this.employeeDiscount;
+        this.focusScan();
     },
 
     // Ricerca per partita IVA: anagrafica, poi OpenAPI (lato server). In ogni caso si apre la
@@ -403,6 +429,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
                 draft_id: this.draftId,
                 document_type: this.documentType,
                 customer_id: this.customer.id,
+                employee_discount: this.employeeDiscount,
                 cashier_id: this.cashierId,
                 items: this.validRows.map((r) => ({
                     product_id: r.product_id,
@@ -695,6 +722,7 @@ export default (initial = null, posDriver = 'manual', posTerminals = [], attenda
         this.pendingQty = 1;
         this.documentType = 'scontrino';
         this.resetCustomer();
+        this.employeeDiscount = false;
         this.modal = null;
         this.sale = null;
         this.payment = null;

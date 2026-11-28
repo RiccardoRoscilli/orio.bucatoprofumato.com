@@ -25,8 +25,11 @@ class Sale extends Model
         'misto' => 'Contanti e carta',
     ];
 
+    /** Sconto dipendenti del centro commerciale, in percentuale sul listino. */
+    public const EMPLOYEE_DISCOUNT_PERCENT = 10;
+
     protected $fillable = [
-        'user_id', 'cashier_id', 'customer_id', 'status', 'document_type', 'payment_method',
+        'user_id', 'cashier_id', 'discount_percent', 'customer_id', 'status', 'document_type', 'payment_method',
         'total_cents', 'paid_cents', 'vne_transaction_id', 'pos_terminal_id', 'pos_order_id', 'pos_transaction_id', 'receipt_number', 'receipt_xml',
         'fattura24_doc_id', 'fattura24_doc_number', 'fattura24_xml', 'notes', 'paid_at', 'closed_at',
         'receipt_voided_at', 'void_receipt_number', 'refunded_at', 'voided_by',
@@ -35,6 +38,7 @@ class Sale extends Model
     protected $casts = [
         'total_cents' => 'integer',
         'paid_cents' => 'integer',
+        'discount_percent' => 'integer',
         'paid_at' => 'datetime',
         'closed_at' => 'datetime',
         'receipt_voided_at' => 'datetime',
@@ -80,6 +84,22 @@ class Sale extends Model
     public function cashier(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cashier_id');
+    }
+
+    /** Prezzo unitario con lo sconto in percentuale, arrotondato al centesimo. */
+    public static function discountedCents(int $cents, int $percent): int
+    {
+        return $cents - (int) round($cents * $percent / 100);
+    }
+
+    /** Quanto si e' risparmiato rispetto al listino (sconto dipendenti). */
+    public function discountCents(): int
+    {
+        if (! $this->discount_percent) {
+            return 0;
+        }
+
+        return (int) $this->items->sum(fn (SaleItem $item) => round($item->qty * ($item->list_price_cents ?? $item->unit_price_cents))) - $this->total_cents;
     }
 
     public function cashierName(): string

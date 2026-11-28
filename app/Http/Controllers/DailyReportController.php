@@ -16,7 +16,7 @@ class DailyReportController extends Controller
     {
         $day = $this->day($request->query('giorno'));
 
-        $sales = Sale::with(['payments', 'cashier:id,name', 'user:id,name'])
+        $sales = Sale::with(['payments', 'items', 'cashier:id,name', 'user:id,name'])
             ->whereIn('status', ['pagata', 'scontrinata', 'fatturata'])
             ->whereBetween('paid_at', [$day->copy()->startOfDay(), $day->copy()->endOfDay()])
             ->get();
@@ -39,6 +39,7 @@ class DailyReportController extends Controller
             ->sortByDesc('total')->values();
 
         $byType = $valid->map(fn (Sale $sale) => $sale->paidByType());
+        $discounted = $valid->filter(fn (Sale $sale) => $sale->discount_percent);
 
         return view('report.daily', [
             'day' => $day,
@@ -52,6 +53,8 @@ class DailyReportController extends Controller
             'fatture' => $valid->where('status', 'fatturata')->count(),
             'daDocumentare' => $valid->where('status', 'pagata')->count(),
             'operators' => $operators,
+            'discountCount' => $discounted->count(),
+            'discountTotal' => (int) $discounted->sum(fn (Sale $sale) => $sale->discountCents()),
             'voidedCount' => $voided->count(),
             'voidedTotal' => (int) $voided->sum('paid_cents'),
         ]);

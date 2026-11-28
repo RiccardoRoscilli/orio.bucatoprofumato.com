@@ -51,6 +51,12 @@
             </div>
         </div>
 
+        @if ($discountCount)
+            <div class="mb-3 rounded-2xl bg-white p-4 text-sm ring-1 ring-stone-200">
+                {{ $discountCount }} {{ $discountCount === 1 ? 'vendita' : 'vendite' }} con sconto dipendenti · {{ euro($discountTotal) }} di sconto
+            </div>
+        @endif
+
         @if ($daDocumentare || $voidedCount)
             <div class="mb-3 space-y-1 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
                 @if ($daDocumentare)

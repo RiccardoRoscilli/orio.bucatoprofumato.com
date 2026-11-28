@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SaleItem extends Model
 {
-    protected $fillable = ['product_id', 'sku', 'description', 'qty', 'unit_price_cents', 'vat_rate'];
+    protected $fillable = ['product_id', 'sku', 'description', 'qty', 'unit_price_cents', 'list_price_cents', 'vat_rate'];
 
     protected $casts = [
         'qty' => 'float',
         'unit_price_cents' => 'integer',
+        'list_price_cents' => 'integer',
         'vat_rate' => 'integer',
     ];
 

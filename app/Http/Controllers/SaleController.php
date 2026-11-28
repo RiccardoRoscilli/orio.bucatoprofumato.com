@@ -24,6 +24,7 @@ class SaleController extends Controller
             'posTerminals' => config('orio.pos.driver') === 'manual' ? [] : \App\Services\Pos\CloudPos::terminalChoices(),
             'initial' => $this->openSaleState($request),
             'attendance' => ['present' => Attendance::presentCashiers(), 'required' => Attendance::required()],
+            'discountPercent' => Sale::EMPLOYEE_DISCOUNT_PERCENT,
         ]);
     }
 
@@ -52,14 +53,16 @@ class SaleController extends Controller
             'pending' => $pending ? ['method' => $pending->method, 'amount' => $pending->amount_cents, 'terminal' => $pending->terminal_id] : null,
             'document_type' => $sale->document_type,
             'customer' => $sale->customer,
+            'employee_discount' => (bool) $sale->discount_percent,
             'rows' => $sale->items->map(fn ($item) => array_merge(
                 $item->product?->toCartItem() ?? ['product_id' => $item->product_id, 'sku' => $item->sku, 'description' => $item->description, 'vat_rate' => $item->vat_rate],
                 [
                     'description' => $item->description,
                     'qty' => (float) $item->qty,
                     // Bozza: sempre il prezzo di listino attuale. Vendita gia' in pagamento o
-                    // pagata: il prezzo con cui e' stata incassata.
-                    'price' => number_format(($sale->status === 'bozza' && $item->product ? $item->product->currentPriceCents() : $item->unit_price_cents) / 100, 2, ',', ''),
+                    // pagata: il listino con cui e' stata incassata (lo sconto dipendenti lo
+                    // riapplica la cassa, come per la bozza).
+                    'price' => number_format(($sale->status === 'bozza' && $item->product ? $item->product->currentPriceCents() : ($item->list_price_cents ?? $item->unit_price_cents)) / 100, 2, ',', ''),
                     'vat_rate' => $item->vat_rate,
                 ],
             ))->values(),
@@ -76,6 +79,7 @@ class SaleController extends Controller
             'draft_id' => 'nullable|integer',
             'document_type' => 'required|in:scontrino,fattura',
             'customer_id' => 'nullable|exists:customers,id',
+            'employee_discount' => 'nullable|boolean',
             'items' => 'present|array',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|numeric|min:0.001',
@@ -135,6 +139,7 @@ class SaleController extends Controller
             'draft_id' => 'nullable|integer',
             'document_type' => 'required|in:scontrino,fattura',
             'customer_id' => 'nullable|required_if:document_type,fattura|exists:customers,id',
+            'employee_discount' => 'nullable|boolean',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|numeric|min:0.001',
@@ -224,6 +229,7 @@ class SaleController extends Controller
      * Righe ricostruite dal catalogo: descrizione, SKU, IVA e prezzo vengono dal prodotto, non
      * dal browser. Il prezzo e' quello Orio gestito dagli admin in Prodotti, o quello promo
      * se oggi il prodotto e' in promo (le promo del sito non valgono in negozio).
+     * Con lo sconto dipendenti (centro commerciale) ogni prezzo unitario cala della percentuale fissa.
      */
     private function fillSale(Sale $sale, array $data): void
     {
@@ -237,20 +243,25 @@ class SaleController extends Controller
             throw ValidationException::withMessages(['items' => "«{$noPrice->name}» non ha un prezzo di listino: va impostato in Prodotti."]);
         }
 
+        $percent = ! empty($data['employee_discount']) ? Sale::EMPLOYEE_DISCOUNT_PERCENT : null;
+
         $sale->items()->delete();
         foreach ($data['items'] as $item) {
             $product = $products[$item['product_id']];
+            $listCents = $product->currentPriceCents();
             $sale->items()->create([
                 'product_id' => $product->id,
                 'sku' => $product->sku,
                 'description' => trim($product->name),
                 'qty' => $item['qty'],
-                'unit_price_cents' => $product->currentPriceCents(),
+                'unit_price_cents' => $percent ? Sale::discountedCents($listCents, $percent) : $listCents,
+                'list_price_cents' => $listCents,
                 'vat_rate' => $product->vat_rate,
             ]);
         }
 
         $sale->document_type = $data['document_type'];
+        $sale->discount_percent = $percent;
         $sale->customer_id = $data['document_type'] === 'fattura' ? ($data['customer_id'] ?? null) : null;
         $sale->load('items');
         $sale->recalculateTotal();
